@@ -24,7 +24,13 @@ export class PostsController {
 
   @Get()
   findAll(@Query() query: any) {
+    console.log('PostsController.findAll called with query:', query);
     return this.postsService.findAll(query);
+  }
+
+  @Get('blog')
+  findForBlog(@Query() query: any) {
+    return this.postsService.findForBlog(query);
   }
 
   @Get('deleted')
@@ -39,6 +45,7 @@ export class PostsController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
+    console.log('PostsController.findOne called with id:', id);
     return this.postsService.findOne(id);
   }
 

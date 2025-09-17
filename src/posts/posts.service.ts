@@ -55,13 +55,18 @@ export class PostsService extends BaseService<Post> {
     orderBy?: Prisma.PostOrderByWithRelationInput;
     includeDeleted?: boolean;
     search?: string;
+    published?: boolean | string;
   }): Promise<Post[]> {
-    const { skip, take, cursor, where, orderBy, includeDeleted, search } = params || {};
+    const { skip, take, cursor, where, orderBy, includeDeleted, search, published } = params || {};
+    
+    // Convert published string to boolean
+    const publishedBool = published === 'true' ? true : published === 'false' ? false : published;
     
     // Build where conditions
     const whereConditions: Prisma.PostWhereInput = {
       ...where,
       ...(includeDeleted ? {} : { deletedAt: null }),
+      ...(publishedBool !== undefined && typeof publishedBool === 'boolean' ? { published: publishedBool } : {}),
     };
 
     // Add search conditions if search parameter is provided
@@ -92,6 +97,104 @@ export class PostsService extends BaseService<Post> {
           },
         },
         comments: true,
+      },
+    });
+  }
+
+  // Optimized method for blog listing - only returns necessary data
+  async findForBlog(params?: {
+    skip?: number;
+    take?: number;
+    published?: boolean | string;
+    authorId?: string;
+    categoryId?: string;
+    tagId?: string;
+    search?: string;
+  }): Promise<any[]> {
+    const { skip, take, published, authorId, categoryId, tagId, search } = params || {};
+    
+    // Convert published string to boolean
+    const publishedBool = published === 'true' ? true : published === 'false' ? false : published;
+    
+    // Build where conditions
+    const whereConditions: Prisma.PostWhereInput = {
+      deletedAt: null, // Always exclude deleted posts for blog
+      ...(publishedBool !== undefined && typeof publishedBool === 'boolean' ? { published: publishedBool } : { published: true }), // Default to published only
+      ...(authorId ? { authorId } : {}),
+    };
+
+    // Add category filter
+    if (categoryId) {
+      whereConditions.categories = {
+        some: {
+          categoryId,
+        },
+      };
+    }
+
+    // Add tag filter
+    if (tagId) {
+      whereConditions.tags = {
+        some: {
+          tagId,
+        },
+      };
+    }
+
+    // Add search conditions
+    if (search && search.trim()) {
+      whereConditions.OR = [
+        { title: { contains: search.trim(), mode: 'insensitive' as const } },
+        { excerpt: { contains: search.trim(), mode: 'insensitive' as const } },
+        { slug: { contains: search.trim(), mode: 'insensitive' as const } },
+      ];
+    }
+
+    return this.prisma.post.findMany({
+      skip,
+      take,
+      where: whereConditions,
+      orderBy: { publishedAt: 'desc' }, // Latest first
+      select: {
+        id: true,
+        title: true,
+        excerpt: true,
+        slug: true,
+        image: true,
+        published: true,
+        publishedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        categories: {
+          select: {
+            category: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+              },
+            },
+          },
+        },
+        tags: {
+          select: {
+            tag: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+              },
+            },
+          },
+        },
+        // Don't include content and comments for blog listing
       },
     });
   }
