@@ -460,7 +460,7 @@ async function main() {
       excerpt: 'Hướng dẫn chi tiết về cách tích hợp Lexical Editor với NestJS backend và Prisma ORM.',
       slug: 'tich-hop-lexical-voi-nestjs',
       image: 'https://images.unsplash.com/photo-1551650975-87deedd944c3?w=800&h=400&fit=crop',
-      published: false,
+      published: true,
       authorId: authorUser.id,
     },
   });

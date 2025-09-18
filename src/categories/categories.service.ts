@@ -4,12 +4,15 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { Category, Prisma } from '@prisma/client';
 import { BaseService } from '../common/base.service';
-import { BulkDeleteDto, BulkRestoreDto, BulkHardDeleteDto } from '../common/dto/bulk-operations.dto';
 
 @Injectable()
 export class CategoriesService extends BaseService<Category> {
   constructor(prisma: PrismaService) {
-    super(prisma);
+    super(prisma, {
+      modelName: 'category',
+      searchFields: ['name', 'description', 'slug'],
+      defaultOrderBy: { name: 'asc' },
+    });
   }
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
@@ -32,22 +35,17 @@ export class CategoriesService extends BaseService<Category> {
     // Build where conditions
     const whereConditions: Prisma.CategoryWhereInput = {
       ...where,
-      ...(includeDeleted ? {} : { deletedAt: null }),
     };
 
     // Add search conditions if search parameter is provided
-    if (search && search.trim()) {
-      whereConditions.OR = [
-        { name: { contains: search.trim(), mode: 'insensitive' as const } },
-        { description: { contains: search.trim(), mode: 'insensitive' as const } },
-        { slug: { contains: search.trim(), mode: 'insensitive' as const } },
-      ];
+    const searchConditions = this.buildSearchConditions(search, ['name', 'description', 'slug']);
+    if (searchConditions) {
+      whereConditions.OR = searchConditions.OR;
     }
 
-    return this.prisma.category.findMany({
+    return this.findMany('category', {
       skip,
       take,
-      cursor,
       where: whereConditions,
       orderBy,
       include: {
@@ -57,13 +55,13 @@ export class CategoriesService extends BaseService<Category> {
           },
         },
       },
+      includeDeleted,
     });
   }
 
   async findOne(id: string, includeDeleted: boolean = false): Promise<Category> {
-    const category = await this.prisma.category.findUnique({
-      where: { id },
-      include: {
+    try {
+      return await this.findUnique('category', { id }, {
         posts: {
           include: {
             post: {
@@ -73,18 +71,10 @@ export class CategoriesService extends BaseService<Category> {
             },
           },
         },
-      },
-    });
-
-    if (!category) {
+      }, includeDeleted);
+    } catch (error) {
       throw new NotFoundException(`Category with ID ${id} not found`);
     }
-
-    if (!includeDeleted && (category as any).deletedAt) {
-      throw new NotFoundException(`Category with ID ${id} not found`);
-    }
-
-    return category;
   }
 
   async findBySlug(slug: string): Promise<Category> {
@@ -136,32 +126,18 @@ export class CategoriesService extends BaseService<Category> {
   }
 
   // Bulk operations
-  async bulkDelete(bulkDeleteDto: BulkDeleteDto): Promise<{ count: number }> {
-    return this.bulkSoftDelete('category', bulkDeleteDto.ids);
-  }
-
-  async bulkRestore(bulkRestoreDto: BulkRestoreDto): Promise<{ count: number }> {
-    return this.bulkRestoreRecords('category', bulkRestoreDto.ids);
-  }
-
-  async bulkHardDelete(bulkHardDeleteDto: BulkHardDeleteDto): Promise<{ count: number }> {
-    return this.bulkHardDeleteRecords('category', bulkHardDeleteDto.ids);
-  }
 
   // Get deleted categories
   async findDeleted(params?: { search?: string }): Promise<Category[]> {
     const whereConditions: any = { deletedAt: { not: null } };
     
     // Add search conditions if search parameter is provided
-    if (params?.search && params.search.trim()) {
-      whereConditions.OR = [
-        { name: { contains: params.search.trim(), mode: 'insensitive' as const } },
-        { description: { contains: params.search.trim(), mode: 'insensitive' as const } },
-        { slug: { contains: params.search.trim(), mode: 'insensitive' as const } },
-      ];
+    const searchConditions = this.buildSearchConditions(params?.search, ['name', 'description', 'slug']);
+    if (searchConditions) {
+      whereConditions.OR = searchConditions.OR;
     }
 
-    return this.prisma.category.findMany({
+    return this.findMany('category', {
       where: whereConditions,
       include: {
         posts: {
@@ -170,6 +146,7 @@ export class CategoriesService extends BaseService<Category> {
           },
         },
       },
+      includeDeleted: true,
     });
   }
 }

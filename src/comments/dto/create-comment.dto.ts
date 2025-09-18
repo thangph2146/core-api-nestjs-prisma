@@ -1,11 +1,11 @@
-import { IsString, IsOptional, IsBoolean } from 'class-validator';
+import { IsString } from 'class-validator';
+import { IsOptionalBoolean } from '../../common/decorators/validation.decorators';
 
 export class CreateCommentDto {
   @IsString()
   content: string;
 
-  @IsOptional()
-  @IsBoolean()
+  @IsOptionalBoolean()
   approved?: boolean;
 
   @IsString()

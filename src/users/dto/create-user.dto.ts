@@ -1,5 +1,6 @@
-import { IsEmail, IsString, IsOptional, IsEnum } from 'class-validator';
+import { IsEmail, IsString, IsEnum } from 'class-validator';
 import { Role } from '@prisma/client';
+import { IsOptionalEnum } from '../../common/decorators/validation.decorators';
 
 export class CreateUserDto {
   @IsEmail()
@@ -11,7 +12,6 @@ export class CreateUserDto {
   @IsString()
   password: string;
 
-  @IsOptional()
-  @IsEnum(Role)
+  @IsOptionalEnum(Role)
   role?: Role;
 }

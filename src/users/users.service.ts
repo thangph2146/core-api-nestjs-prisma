@@ -4,13 +4,16 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User, Prisma } from '@prisma/client';
 import { BaseService } from '../common/base.service';
-import { BulkDeleteDto, BulkRestoreDto, BulkHardDeleteDto } from '../common/dto/bulk-operations.dto';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class UsersService extends BaseService<User> {
   constructor(prisma: PrismaService) {
-    super(prisma);
+    super(prisma, {
+      modelName: 'user',
+      searchFields: ['name', 'email'],
+      defaultOrderBy: { createdAt: 'desc' },
+    });
   }
 
   async create(createUserDto: CreateUserDto): Promise<User> {
@@ -37,44 +40,32 @@ export class UsersService extends BaseService<User> {
     // Build where conditions
     const whereConditions: Prisma.UserWhereInput = {
       ...where,
-      ...(includeDeleted ? {} : { deletedAt: null }),
     };
 
     // Add search conditions if search parameter is provided
-    if (search && search.trim()) {
-      whereConditions.OR = [
-        { name: { contains: search.trim(), mode: 'insensitive' as const } },
-        { email: { contains: search.trim(), mode: 'insensitive' as const } },
-      ];
+    const searchConditions = this.buildSearchConditions(search, ['name', 'email']);
+    if (searchConditions) {
+      whereConditions.OR = searchConditions.OR;
     }
 
-    return this.prisma.user.findMany({
+    return this.findMany('user', {
       skip,
       take,
-      cursor,
       where: whereConditions,
       orderBy,
+      includeDeleted,
     });
   }
 
   async findOne(id: string, includeDeleted: boolean = false): Promise<User> {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-      include: {
+    try {
+      return await this.findUnique('user', { id }, {
         posts: true,
         comments: true,
-      },
-    });
-
-    if (!user) {
+      }, includeDeleted);
+    } catch (error) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
-
-    if (!includeDeleted && (user as any).deletedAt) {
-      throw new NotFoundException(`User with ID ${id} not found`);
-    }
-
-    return user;
   }
 
   async findByEmail(email: string): Promise<User | null> {
@@ -109,36 +100,24 @@ export class UsersService extends BaseService<User> {
   }
 
   // Bulk operations
-  async bulkDelete(bulkDeleteDto: BulkDeleteDto): Promise<{ count: number }> {
-    return this.bulkSoftDelete('user', bulkDeleteDto.ids);
-  }
-
-  async bulkRestore(bulkRestoreDto: BulkRestoreDto): Promise<{ count: number }> {
-    return this.bulkRestoreRecords('user', bulkRestoreDto.ids);
-  }
-
-  async bulkHardDelete(bulkHardDeleteDto: BulkHardDeleteDto): Promise<{ count: number }> {
-    return this.bulkHardDeleteRecords('user', bulkHardDeleteDto.ids);
-  }
 
   // Get deleted users
   async findDeleted(params?: { search?: string }): Promise<User[]> {
     const whereConditions: any = { deletedAt: { not: null } };
     
     // Add search conditions if search parameter is provided
-    if (params?.search && params.search.trim()) {
-      whereConditions.OR = [
-        { name: { contains: params.search.trim(), mode: 'insensitive' as const } },
-        { email: { contains: params.search.trim(), mode: 'insensitive' as const } },
-      ];
+    const searchConditions = this.buildSearchConditions(params?.search, ['name', 'email']);
+    if (searchConditions) {
+      whereConditions.OR = searchConditions.OR;
     }
 
-    return this.prisma.user.findMany({
+    return this.findMany('user', {
       where: whereConditions,
       include: {
         posts: true,
         comments: true,
       },
+      includeDeleted: true,
     });
   }
 }

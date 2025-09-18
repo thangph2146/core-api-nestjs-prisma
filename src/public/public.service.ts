@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 
@@ -8,15 +8,29 @@ export class PublicService {
 
   // Get public posts - only published and not deleted
   async getPublicPosts(params?: {
-    skip?: number;
-    take?: number;
+    page?: number | string;
+    limit?: number | string;
     authorId?: string;
     categoryId?: string;
     tagId?: string;
     search?: string;
     orderBy?: 'newest' | 'oldest' | 'popular';
   }) {
-    const { skip, take, authorId, categoryId, tagId, search, orderBy } = params || {};
+    const { 
+      page = 1, 
+      limit = 10, 
+      authorId, 
+      categoryId, 
+      tagId, 
+      search, 
+      orderBy = 'newest' 
+    } = params || {};
+
+    // Convert string parameters to numbers
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 10;
+
+    const skip = (pageNum - 1) * limitNum;
 
     // Build where conditions for public posts
     const whereConditions: Prisma.PostWhereInput = {
@@ -43,11 +57,33 @@ export class PublicService {
       };
     }
 
-    // Add search filter
+    // Add search filter with optimized search
     if (search && search.trim()) {
+      const searchTerm = search.trim();
       whereConditions.OR = [
-        { title: { contains: search.trim(), mode: 'insensitive' } },
-        { excerpt: { contains: search.trim(), mode: 'insensitive' } },
+        { title: { contains: searchTerm, mode: 'insensitive' } },
+        { excerpt: { contains: searchTerm, mode: 'insensitive' } },
+        { slug: { contains: searchTerm, mode: 'insensitive' } },
+        // Search in categories
+        {
+          categories: {
+            some: {
+              category: {
+                name: { contains: searchTerm, mode: 'insensitive' }
+              }
+            }
+          }
+        },
+        // Search in tags
+        {
+          tags: {
+            some: {
+              tag: {
+                name: { contains: searchTerm, mode: 'insensitive' }
+              }
+            }
+          }
+        }
       ];
     }
 
@@ -56,12 +92,18 @@ export class PublicService {
     if (orderBy === 'oldest') {
       orderByClause = { publishedAt: 'asc' };
     } else if (orderBy === 'popular') {
-      orderByClause = { comments: { _count: 'desc' } };
+      orderByClause = { createdAt: 'desc' }; // Fallback to createdAt for popular
     }
 
-    return this.prisma.post.findMany({
+    // Get total count for pagination
+    const total = await this.prisma.post.count({
+      where: whereConditions,
+    });
+
+    // Get posts with pagination
+    const posts = await this.prisma.post.findMany({
       skip,
-      take,
+      take: limitNum,
       where: whereConditions,
       orderBy: orderByClause,
       select: {
@@ -103,16 +145,28 @@ export class PublicService {
         },
         _count: {
           select: {
-            comments: {
-              where: {
-                approved: true,
-                deletedAt: null,
-              },
-            },
+            comments: true,
           },
         },
       },
     });
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(total / limitNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPrevPage = pageNum > 1;
+
+    return {
+      data: posts,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+        hasNextPage,
+        hasPrevPage,
+      },
+    };
   }
 
   // Get public post by slug
@@ -188,7 +242,7 @@ export class PublicService {
     });
 
     if (!post) {
-      throw new Error(`Post with slug ${slug} not found`);
+      throw new NotFoundException(`Post with slug ${slug} not found`);
     }
 
     return post;
@@ -196,11 +250,12 @@ export class PublicService {
 
   // Get public categories
   async getPublicCategories(params?: {
-    skip?: number;
-    take?: number;
+    page?: number;
+    limit?: number;
     search?: string;
   }) {
-    const { skip, take, search } = params || {};
+    const { page = 1, limit = 10, search } = params || {};
+    const skip = (page - 1) * limit;
 
     const whereConditions: Prisma.CategoryWhereInput = {
       deletedAt: null,
@@ -213,9 +268,15 @@ export class PublicService {
       ];
     }
 
-    return this.prisma.category.findMany({
+    // Get total count for pagination
+    const total = await this.prisma.category.count({
+      where: whereConditions,
+    });
+
+    // Get categories with pagination
+    const categories = await this.prisma.category.findMany({
       skip,
-      take,
+      take: limit,
       where: whereConditions,
       orderBy: { name: 'asc' },
       select: {
@@ -238,6 +299,23 @@ export class PublicService {
         },
       },
     });
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(total / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    return {
+      data: categories,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage,
+        hasPrevPage,
+      },
+    };
   }
 
   // Get public category by slug
@@ -296,11 +374,12 @@ export class PublicService {
 
   // Get public tags
   async getPublicTags(params?: {
-    skip?: number;
-    take?: number;
+    page?: number;
+    limit?: number;
     search?: string;
   }) {
-    const { skip, take, search } = params || {};
+    const { page = 1, limit = 10, search } = params || {};
+    const skip = (page - 1) * limit;
 
     const whereConditions: Prisma.TagWhereInput = {
       deletedAt: null,
@@ -312,9 +391,15 @@ export class PublicService {
       ];
     }
 
-    return this.prisma.tag.findMany({
+    // Get total count for pagination
+    const total = await this.prisma.tag.count({
+      where: whereConditions,
+    });
+
+    // Get tags with pagination
+    const tags = await this.prisma.tag.findMany({
       skip,
-      take,
+      take: limit,
       where: whereConditions,
       orderBy: { name: 'asc' },
       select: {
@@ -336,6 +421,23 @@ export class PublicService {
         },
       },
     });
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(total / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    return {
+      data: tags,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage,
+        hasPrevPage,
+      },
+    };
   }
 
   // Get public tag by slug
@@ -428,10 +530,11 @@ export class PublicService {
   async searchPublicContent(params: {
     q: string;
     type?: 'posts' | 'categories' | 'tags' | 'all';
-    skip?: number;
-    take?: number;
+    page?: number;
+    limit?: number;
   }) {
-    const { q, type = 'all', skip, take } = params;
+    const { q, type = 'all', page = 1, limit = 10 } = params;
+    const skip = (page - 1) * limit;
 
     if (!q || !q.trim()) {
       return { posts: [], categories: [], tags: [] };
@@ -443,7 +546,7 @@ export class PublicService {
     if (type === 'all' || type === 'posts') {
       results.posts = await this.prisma.post.findMany({
         skip,
-        take,
+        take: limit,
         where: {
           deletedAt: null,
           published: true,
@@ -475,7 +578,7 @@ export class PublicService {
     if (type === 'all' || type === 'categories') {
       results.categories = await this.prisma.category.findMany({
         skip,
-        take,
+        take: limit,
         where: {
           deletedAt: null,
           OR: [
@@ -498,7 +601,7 @@ export class PublicService {
     if (type === 'all' || type === 'tags') {
       results.tags = await this.prisma.tag.findMany({
         skip,
-        take,
+        take: limit,
         where: {
           deletedAt: null,
           name: { contains: searchTerm, mode: 'insensitive' },
@@ -515,5 +618,110 @@ export class PublicService {
     }
 
     return results;
+  }
+
+  // Get related posts based on categories and tags
+  async getRelatedPosts(postId: string, limit: number = 5) {
+    // First, get the current post to find its categories and tags
+    const currentPost = await this.prisma.post.findUnique({
+      where: { id: postId },
+      include: {
+        categories: {
+          include: {
+            category: true,
+          },
+        },
+        tags: {
+          include: {
+            tag: true,
+          },
+        },
+      },
+    });
+
+    if (!currentPost) {
+      return [];
+    }
+
+    const categoryIds = currentPost.categories.map(pc => pc.categoryId);
+    const tagIds = currentPost.tags.map(pt => pt.tagId);
+
+    // Find related posts based on shared categories or tags
+    const relatedPosts = await this.prisma.post.findMany({
+      where: {
+        AND: [
+          { id: { not: postId } }, // Exclude current post
+          { published: true }, // Only published posts
+          { deletedAt: null }, // Not deleted
+          {
+            OR: [
+              // Posts with same categories
+              {
+                categories: {
+                  some: {
+                    categoryId: { in: categoryIds },
+                  },
+                },
+              },
+              // Posts with same tags
+              {
+                tags: {
+                  some: {
+                    tagId: { in: tagIds },
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        categories: {
+          include: {
+            category: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+              },
+            },
+          },
+        },
+        tags: {
+          include: {
+            tag: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            comments: {
+              where: {
+                approved: true,
+                deletedAt: null,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        publishedAt: 'desc',
+      },
+      take: limit,
+    });
+
+    return relatedPosts;
   }
 }

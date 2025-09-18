@@ -4,12 +4,15 @@ import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { Post, Prisma } from '@prisma/client';
 import { BaseService } from '../common/base.service';
-import { BulkDeleteDto, BulkRestoreDto, BulkHardDeleteDto } from '../common/dto/bulk-operations.dto';
 
 @Injectable()
 export class PostsService extends BaseService<Post> {
   constructor(prisma: PrismaService) {
-    super(prisma);
+    super(prisma, {
+      modelName: 'post',
+      searchFields: ['title', 'excerpt', 'content', 'slug'],
+      defaultOrderBy: { createdAt: 'desc' },
+    });
   }
 
   async create(createPostDto: CreatePostDto): Promise<Post> {
@@ -70,12 +73,9 @@ export class PostsService extends BaseService<Post> {
     };
 
     // Add search conditions if search parameter is provided
-    if (search && search.trim()) {
-      whereConditions.OR = [
-        { title: { contains: search.trim(), mode: 'insensitive' as const } },
-        { excerpt: { contains: search.trim(), mode: 'insensitive' as const } },
-        { slug: { contains: search.trim(), mode: 'insensitive' as const } },
-      ];
+    const searchConditions = this.buildSearchConditions(search, ['title', 'excerpt', 'slug']);
+    if (searchConditions) {
+      whereConditions.OR = searchConditions.OR;
     }
 
     return this.prisma.post.findMany({
@@ -344,29 +344,15 @@ export class PostsService extends BaseService<Post> {
   }
 
   // Bulk operations
-  async bulkDelete(bulkDeleteDto: BulkDeleteDto): Promise<{ count: number }> {
-    return this.bulkSoftDelete('post', bulkDeleteDto.ids);
-  }
-
-  async bulkRestore(bulkRestoreDto: BulkRestoreDto): Promise<{ count: number }> {
-    return this.bulkRestoreRecords('post', bulkRestoreDto.ids);
-  }
-
-  async bulkHardDelete(bulkHardDeleteDto: BulkHardDeleteDto): Promise<{ count: number }> {
-    return this.bulkHardDeleteRecords('post', bulkHardDeleteDto.ids);
-  }
 
   // Get deleted posts
   async findDeleted(params?: { search?: string }): Promise<Post[]> {
     const whereConditions: any = { deletedAt: { not: null } };
     
     // Add search conditions if search parameter is provided
-    if (params?.search && params.search.trim()) {
-      whereConditions.OR = [
-        { title: { contains: params.search.trim(), mode: 'insensitive' as const } },
-        { excerpt: { contains: params.search.trim(), mode: 'insensitive' as const } },
-        { slug: { contains: params.search.trim(), mode: 'insensitive' as const } },
-      ];
+    const searchConditions = this.buildSearchConditions(params?.search, ['title', 'excerpt', 'slug']);
+    if (searchConditions) {
+      whereConditions.OR = searchConditions.OR;
     }
 
     return this.prisma.post.findMany({

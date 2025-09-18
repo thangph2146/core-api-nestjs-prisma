@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsBoolean, IsArray, IsObject } from 'class-validator';
+import { IsString, IsBoolean, IsArray, IsObject } from 'class-validator';
+import { IsOptionalString, IsOptionalBoolean, IsOptionalArray } from '../../common/decorators/validation.decorators';
 
 export class CreatePostDto {
   @IsString()
@@ -7,31 +8,26 @@ export class CreatePostDto {
   @IsObject()
   content: any; // SerializedEditorState từ Lexical editor
 
-  @IsOptional()
-  @IsString()
+  @IsOptionalString()
   excerpt?: string;
 
   @IsString()
   slug: string;
 
-  @IsOptional()
-  @IsString()
+  @IsOptionalString()
   image?: string;
 
-  @IsOptional()
-  @IsBoolean()
+  @IsOptionalBoolean()
   published?: boolean;
 
   @IsString()
   authorId: string;
 
-  @IsOptional()
-  @IsArray()
+  @IsOptionalArray()
   @IsString({ each: true })
   categoryIds?: string[];
 
-  @IsOptional()
-  @IsArray()
+  @IsOptionalArray()
   @IsString({ each: true })
   tagIds?: string[];
 }

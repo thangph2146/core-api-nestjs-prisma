@@ -4,12 +4,15 @@ import { CreateTagDto } from './dto/create-tag.dto';
 import { UpdateTagDto } from './dto/update-tag.dto';
 import { Tag, Prisma } from '@prisma/client';
 import { BaseService } from '../common/base.service';
-import { BulkDeleteDto, BulkRestoreDto, BulkHardDeleteDto } from '../common/dto/bulk-operations.dto';
 
 @Injectable()
 export class TagsService extends BaseService<Tag> {
   constructor(prisma: PrismaService) {
-    super(prisma);
+    super(prisma, {
+      modelName: 'tag',
+      searchFields: ['name', 'slug'],
+      defaultOrderBy: { name: 'asc' },
+    });
   }
 
   async create(createTagDto: CreateTagDto): Promise<Tag> {
@@ -32,21 +35,17 @@ export class TagsService extends BaseService<Tag> {
     // Build where conditions
     const whereConditions: Prisma.TagWhereInput = {
       ...where,
-      ...(includeDeleted ? {} : { deletedAt: null }),
     };
 
     // Add search conditions if search parameter is provided
-    if (search && search.trim()) {
-      whereConditions.OR = [
-        { name: { contains: search.trim(), mode: 'insensitive' as const } },
-        { slug: { contains: search.trim(), mode: 'insensitive' as const } },
-      ];
+    const searchConditions = this.buildSearchConditions(search, ['name', 'slug']);
+    if (searchConditions) {
+      whereConditions.OR = searchConditions.OR;
     }
 
-    return this.prisma.tag.findMany({
+    return this.findMany('tag', {
       skip,
       take,
-      cursor,
       where: whereConditions,
       orderBy,
       include: {
@@ -56,13 +55,13 @@ export class TagsService extends BaseService<Tag> {
           },
         },
       },
+      includeDeleted,
     });
   }
 
   async findOne(id: string, includeDeleted: boolean = false): Promise<Tag> {
-    const tag = await this.prisma.tag.findUnique({
-      where: { id },
-      include: {
+    try {
+      return await this.findUnique('tag', { id }, {
         posts: {
           include: {
             post: {
@@ -72,18 +71,10 @@ export class TagsService extends BaseService<Tag> {
             },
           },
         },
-      },
-    });
-
-    if (!tag) {
+      }, includeDeleted);
+    } catch (error) {
       throw new NotFoundException(`Tag with ID ${id} not found`);
     }
-
-    if (!includeDeleted && (tag as any).deletedAt) {
-      throw new NotFoundException(`Tag with ID ${id} not found`);
-    }
-
-    return tag;
   }
 
   async findBySlug(slug: string): Promise<Tag> {
@@ -135,31 +126,18 @@ export class TagsService extends BaseService<Tag> {
   }
 
   // Bulk operations
-  async bulkDelete(bulkDeleteDto: BulkDeleteDto): Promise<{ count: number }> {
-    return this.bulkSoftDelete('tag', bulkDeleteDto.ids);
-  }
-
-  async bulkRestore(bulkRestoreDto: BulkRestoreDto): Promise<{ count: number }> {
-    return this.bulkRestoreRecords('tag', bulkRestoreDto.ids);
-  }
-
-  async bulkHardDelete(bulkHardDeleteDto: BulkHardDeleteDto): Promise<{ count: number }> {
-    return this.bulkHardDeleteRecords('tag', bulkHardDeleteDto.ids);
-  }
 
   // Get deleted tags
   async findDeleted(params?: { search?: string }): Promise<Tag[]> {
     const whereConditions: any = { deletedAt: { not: null } };
     
     // Add search conditions if search parameter is provided
-    if (params?.search && params.search.trim()) {
-      whereConditions.OR = [
-        { name: { contains: params.search.trim(), mode: 'insensitive' as const } },
-        { slug: { contains: params.search.trim(), mode: 'insensitive' as const } },
-      ];
+    const searchConditions = this.buildSearchConditions(params?.search, ['name', 'slug']);
+    if (searchConditions) {
+      whereConditions.OR = searchConditions.OR;
     }
 
-    return this.prisma.tag.findMany({
+    return this.findMany('tag', {
       where: whereConditions,
       include: {
         posts: {
@@ -168,6 +146,7 @@ export class TagsService extends BaseService<Tag> {
           },
         },
       },
+      includeDeleted: true,
     });
   }
 }

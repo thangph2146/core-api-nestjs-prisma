@@ -1,4 +1,5 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsString } from 'class-validator';
+import { IsOptionalString } from '../../common/decorators/validation.decorators';
 
 export class CreateCategoryDto {
   @IsString()
@@ -7,7 +8,6 @@ export class CreateCategoryDto {
   @IsString()
   slug: string;
 
-  @IsOptional()
-  @IsString()
+  @IsOptionalString()
   description?: string;
 }

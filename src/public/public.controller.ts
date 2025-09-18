@@ -53,4 +53,14 @@ export class PublicController {
   searchPublicContent(@Query() query: any) {
     return this.publicService.searchPublicContent(query);
   }
+
+  // Get related posts
+  @Get('posts/:postId/related')
+  getRelatedPosts(
+    @Param('postId') postId: string,
+    @Query('limit') limit?: string
+  ) {
+    const limitNumber = limit ? parseInt(limit, 10) : 5;
+    return this.publicService.getRelatedPosts(postId, limitNumber);
+  }
 }

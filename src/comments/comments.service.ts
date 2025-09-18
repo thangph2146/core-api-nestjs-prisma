@@ -4,12 +4,15 @@ import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { Comment, Prisma } from '@prisma/client';
 import { BaseService } from '../common/base.service';
-import { BulkDeleteDto, BulkRestoreDto, BulkHardDeleteDto } from '../common/dto/bulk-operations.dto';
 
 @Injectable()
 export class CommentsService extends BaseService<Comment> {
   constructor(prisma: PrismaService) {
-    super(prisma);
+    super(prisma, {
+      modelName: 'comment',
+      searchFields: ['content'],
+      defaultOrderBy: { createdAt: 'desc' },
+    });
   }
 
   async create(createCommentDto: CreateCommentDto): Promise<Comment> {
@@ -36,47 +39,36 @@ export class CommentsService extends BaseService<Comment> {
     // Build where conditions
     const whereConditions: Prisma.CommentWhereInput = {
       ...where,
-      ...(includeDeleted ? {} : { deletedAt: null }),
     };
 
     // Add search conditions if search parameter is provided
-    if (search && search.trim()) {
-      whereConditions.OR = [
-        { content: { contains: search.trim(), mode: 'insensitive' as const } },
-      ];
+    const searchConditions = this.buildSearchConditions(search, ['content']);
+    if (searchConditions) {
+      whereConditions.OR = searchConditions.OR;
     }
 
-    return this.prisma.comment.findMany({
+    return this.findMany('comment', {
       skip,
       take,
-      cursor,
       where: whereConditions,
       orderBy,
       include: {
         author: true,
         post: true,
       },
+      includeDeleted,
     });
   }
 
   async findOne(id: string, includeDeleted: boolean = false): Promise<Comment> {
-    const comment = await this.prisma.comment.findUnique({
-      where: { id },
-      include: {
+    try {
+      return await this.findUnique('comment', { id }, {
         author: true,
         post: true,
-      },
-    });
-
-    if (!comment) {
+      }, includeDeleted);
+    } catch (error) {
       throw new NotFoundException(`Comment with ID ${id} not found`);
     }
-
-    if (!includeDeleted && (comment as any).deletedAt) {
-      throw new NotFoundException(`Comment with ID ${id} not found`);
-    }
-
-    return comment;
   }
 
   async findByPost(postId: string, approvedOnly: boolean = true): Promise<Comment[]> {
@@ -124,35 +116,24 @@ export class CommentsService extends BaseService<Comment> {
   }
 
   // Bulk operations
-  async bulkDelete(bulkDeleteDto: BulkDeleteDto): Promise<{ count: number }> {
-    return this.bulkSoftDelete('comment', bulkDeleteDto.ids);
-  }
-
-  async bulkRestore(bulkRestoreDto: BulkRestoreDto): Promise<{ count: number }> {
-    return this.bulkRestoreRecords('comment', bulkRestoreDto.ids);
-  }
-
-  async bulkHardDelete(bulkHardDeleteDto: BulkHardDeleteDto): Promise<{ count: number }> {
-    return this.bulkHardDeleteRecords('comment', bulkHardDeleteDto.ids);
-  }
 
   // Get deleted comments
   async findDeleted(params?: { search?: string }): Promise<Comment[]> {
     const whereConditions: any = { deletedAt: { not: null } };
     
     // Add search conditions if search parameter is provided
-    if (params?.search && params.search.trim()) {
-      whereConditions.OR = [
-        { content: { contains: params.search.trim(), mode: 'insensitive' as const } },
-      ];
+    const searchConditions = this.buildSearchConditions(params?.search, ['content']);
+    if (searchConditions) {
+      whereConditions.OR = searchConditions.OR;
     }
 
-    return this.prisma.comment.findMany({
+    return this.findMany('comment', {
       where: whereConditions,
       include: {
         author: true,
         post: true,
       },
+      includeDeleted: true,
     });
   }
 
