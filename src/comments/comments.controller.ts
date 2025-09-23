@@ -6,7 +6,11 @@ import { BaseController } from '../common/base.controller';
 import { Comment } from '@prisma/client';
 
 @Controller('comments')
-export class CommentsController extends BaseController<Comment, CreateCommentDto, UpdateCommentDto> {
+export class CommentsController extends BaseController<
+  Comment,
+  CreateCommentDto,
+  UpdateCommentDto
+> {
   constructor(private readonly commentsService: CommentsService) {
     super(commentsService, {
       modelName: 'comment',
@@ -16,7 +20,10 @@ export class CommentsController extends BaseController<Comment, CreateCommentDto
   }
 
   @Get('post/:postId')
-  findByPost(@Param('postId') postId: string, @Query('approved') approved?: string) {
+  findByPost(
+    @Param('postId') postId: string,
+    @Query('approved') approved?: string,
+  ) {
     const approvedOnly = approved !== 'false';
     return this.commentsService.findByPost(postId, approvedOnly);
   }

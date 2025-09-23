@@ -35,15 +35,18 @@ export class UsersService extends BaseService<User> {
     includeDeleted?: boolean;
     search?: string;
   }): Promise<User[]> {
-    const { skip, take, cursor, where, orderBy, includeDeleted, search } = params || {};
-    
+    const { skip, take, where, orderBy, includeDeleted, search } = params || {};
+
     // Build where conditions
     const whereConditions: Prisma.UserWhereInput = {
       ...where,
     };
 
     // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(search, ['name', 'email']);
+    const searchConditions = this.buildSearchConditions(search, [
+      'name',
+      'email',
+    ]);
     if (searchConditions) {
       whereConditions.OR = searchConditions.OR;
     }
@@ -59,11 +62,16 @@ export class UsersService extends BaseService<User> {
 
   async findOne(id: string, includeDeleted: boolean = false): Promise<User> {
     try {
-      return await this.findUnique('user', { id }, {
-        posts: true,
-        comments: true,
-      }, includeDeleted);
-    } catch (error) {
+      return await this.findUnique(
+        'user',
+        { id },
+        {
+          posts: true,
+          comments: true,
+        },
+        includeDeleted,
+      );
+    } catch {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
   }
@@ -103,10 +111,13 @@ export class UsersService extends BaseService<User> {
 
   // Get deleted users
   async findDeleted(params?: { search?: string }): Promise<User[]> {
-    const whereConditions: any = { deletedAt: { not: null } };
-    
+    const whereConditions: Prisma.UserWhereInput = { deletedAt: { not: null } };
+
     // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(params?.search, ['name', 'email']);
+    const searchConditions = this.buildSearchConditions(params?.search, [
+      'name',
+      'email',
+    ]);
     if (searchConditions) {
       whereConditions.OR = searchConditions.OR;
     }

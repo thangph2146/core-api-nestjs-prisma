@@ -1,5 +1,15 @@
 import { IsString, IsDateString } from 'class-validator';
-import { IsOptionalString, IsOptionalNumber, IsOptionalEnum, IsOptionalUUID, IsPage, IsLimit, IsOptionalSearch, IsOptionalSortBy, IsOptionalSortOrder } from '../decorators/validation.decorators';
+import {
+  IsOptionalString,
+  IsOptionalNumber,
+  IsOptionalEnum,
+  IsOptionalUUID,
+  IsPage,
+  IsLimit,
+  IsOptionalSearch,
+  IsOptionalSortBy,
+  IsOptionalSortOrder,
+} from '../decorators/validation.decorators';
 
 export class BaseQueryDto {
   @IsOptionalNumber()

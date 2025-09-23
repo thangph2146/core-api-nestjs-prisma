@@ -6,7 +6,11 @@ import { BaseController } from '../common/base.controller';
 import { User } from '@prisma/client';
 
 @Controller('users')
-export class UsersController extends BaseController<User, CreateUserDto, UpdateUserDto> {
+export class UsersController extends BaseController<
+  User,
+  CreateUserDto,
+  UpdateUserDto
+> {
   constructor(private readonly usersService: UsersService) {
     super(usersService, {
       modelName: 'user',

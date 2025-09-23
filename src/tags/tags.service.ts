@@ -30,15 +30,18 @@ export class TagsService extends BaseService<Tag> {
     includeDeleted?: boolean;
     search?: string;
   }): Promise<Tag[]> {
-    const { skip, take, cursor, where, orderBy, includeDeleted, search } = params || {};
-    
+    const { skip, take, where, orderBy, includeDeleted, search } = params || {};
+
     // Build where conditions
     const whereConditions: Prisma.TagWhereInput = {
       ...where,
     };
 
     // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(search, ['name', 'slug']);
+    const searchConditions = this.buildSearchConditions(search, [
+      'name',
+      'slug',
+    ]);
     if (searchConditions) {
       whereConditions.OR = searchConditions.OR;
     }
@@ -61,18 +64,23 @@ export class TagsService extends BaseService<Tag> {
 
   async findOne(id: string, includeDeleted: boolean = false): Promise<Tag> {
     try {
-      return await this.findUnique('tag', { id }, {
-        posts: {
-          include: {
-            post: {
-              include: {
-                author: true,
+      return await this.findUnique(
+        'tag',
+        { id },
+        {
+          posts: {
+            include: {
+              post: {
+                include: {
+                  author: true,
+                },
               },
             },
           },
         },
-      }, includeDeleted);
-    } catch (error) {
+        includeDeleted,
+      );
+    } catch {
       throw new NotFoundException(`Tag with ID ${id} not found`);
     }
   }
@@ -129,10 +137,13 @@ export class TagsService extends BaseService<Tag> {
 
   // Get deleted tags
   async findDeleted(params?: { search?: string }): Promise<Tag[]> {
-    const whereConditions: any = { deletedAt: { not: null } };
-    
+    const whereConditions: Prisma.TagWhereInput = { deletedAt: { not: null } };
+
     // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(params?.search, ['name', 'slug']);
+    const searchConditions = this.buildSearchConditions(params?.search, [
+      'name',
+      'slug',
+    ]);
     if (searchConditions) {
       whereConditions.OR = searchConditions.OR;
     }

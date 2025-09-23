@@ -1,4 +1,4 @@
-import { IsEmail, IsString, IsEnum } from 'class-validator';
+import { IsEmail, IsString } from 'class-validator';
 import { Role } from '@prisma/client';
 import { IsOptionalEnum } from '../../common/decorators/validation.decorators';
 

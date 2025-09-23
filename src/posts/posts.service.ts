@@ -22,16 +22,20 @@ export class PostsService extends BaseService<Post> {
       data: {
         ...postData,
         publishedAt: createPostDto.published ? new Date() : null,
-        categories: categoryIds ? {
-          create: categoryIds.map(categoryId => ({
-            category: { connect: { id: categoryId } }
-          }))
-        } : undefined,
-        tags: tagIds ? {
-          create: tagIds.map(tagId => ({
-            tag: { connect: { id: tagId } }
-          }))
-        } : undefined,
+        categories: categoryIds
+          ? {
+              create: categoryIds.map((categoryId) => ({
+                category: { connect: { id: categoryId } },
+              })),
+            }
+          : undefined,
+        tags: tagIds
+          ? {
+              create: tagIds.map((tagId) => ({
+                tag: { connect: { id: tagId } },
+              })),
+            }
+          : undefined,
       },
       include: {
         author: true,
@@ -60,20 +64,36 @@ export class PostsService extends BaseService<Post> {
     search?: string;
     published?: boolean | string;
   }): Promise<Post[]> {
-    const { skip, take, cursor, where, orderBy, includeDeleted, search, published } = params || {};
-    
+    const {
+      skip,
+      take,
+      cursor,
+      where,
+      orderBy,
+      includeDeleted,
+      search,
+      published,
+    } = params || {};
+
     // Convert published string to boolean
-    const publishedBool = published === 'true' ? true : published === 'false' ? false : published;
-    
+    const publishedBool =
+      published === 'true' ? true : published === 'false' ? false : published;
+
     // Build where conditions
     const whereConditions: Prisma.PostWhereInput = {
       ...where,
       ...(includeDeleted ? {} : { deletedAt: null }),
-      ...(publishedBool !== undefined && typeof publishedBool === 'boolean' ? { published: publishedBool } : {}),
+      ...(publishedBool !== undefined && typeof publishedBool === 'boolean'
+        ? { published: publishedBool }
+        : {}),
     };
 
     // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(search, ['title', 'excerpt', 'slug']);
+    const searchConditions = this.buildSearchConditions(search, [
+      'title',
+      'excerpt',
+      'slug',
+    ]);
     if (searchConditions) {
       whereConditions.OR = searchConditions.OR;
     }
@@ -111,15 +131,19 @@ export class PostsService extends BaseService<Post> {
     tagId?: string;
     search?: string;
   }): Promise<any[]> {
-    const { skip, take, published, authorId, categoryId, tagId, search } = params || {};
-    
+    const { skip, take, published, authorId, categoryId, tagId, search } =
+      params || {};
+
     // Convert published string to boolean
-    const publishedBool = published === 'true' ? true : published === 'false' ? false : published;
-    
+    const publishedBool =
+      published === 'true' ? true : published === 'false' ? false : published;
+
     // Build where conditions
     const whereConditions: Prisma.PostWhereInput = {
       deletedAt: null, // Always exclude deleted posts for blog
-      ...(publishedBool !== undefined && typeof publishedBool === 'boolean' ? { published: publishedBool } : { published: true }), // Default to published only
+      ...(publishedBool !== undefined && typeof publishedBool === 'boolean'
+        ? { published: publishedBool }
+        : { published: true }), // Default to published only
       ...(authorId ? { authorId } : {}),
     };
 
@@ -226,7 +250,7 @@ export class PostsService extends BaseService<Post> {
       throw new NotFoundException(`Post with ID ${id} not found`);
     }
 
-    if (!includeDeleted && (post as any).deletedAt) {
+    if (!includeDeleted && post.deletedAt) {
       throw new NotFoundException(`Post with ID ${id} not found`);
     }
 
@@ -289,16 +313,20 @@ export class PostsService extends BaseService<Post> {
       data: {
         ...postData,
         publishedAt: updatePostDto.published ? new Date() : undefined,
-        categories: categoryIds ? {
-          create: categoryIds.map(categoryId => ({
-            category: { connect: { id: categoryId } }
-          }))
-        } : undefined,
-        tags: tagIds ? {
-          create: tagIds.map(tagId => ({
-            tag: { connect: { id: tagId } }
-          }))
-        } : undefined,
+        categories: categoryIds
+          ? {
+              create: categoryIds.map((categoryId) => ({
+                category: { connect: { id: categoryId } },
+              })),
+            }
+          : undefined,
+        tags: tagIds
+          ? {
+              create: tagIds.map((tagId) => ({
+                tag: { connect: { id: tagId } },
+              })),
+            }
+          : undefined,
       },
       include: {
         author: true,
@@ -316,7 +344,6 @@ export class PostsService extends BaseService<Post> {
       },
     });
   }
-
 
   async publish(id: string): Promise<Post> {
     return this.update(id, { published: true });
@@ -347,10 +374,14 @@ export class PostsService extends BaseService<Post> {
 
   // Get deleted posts
   async findDeleted(params?: { search?: string }): Promise<Post[]> {
-    const whereConditions: any = { deletedAt: { not: null } };
-    
+    const whereConditions: Prisma.PostWhereInput = { deletedAt: { not: null } };
+
     // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(params?.search, ['title', 'excerpt', 'slug']);
+    const searchConditions = this.buildSearchConditions(params?.search, [
+      'title',
+      'excerpt',
+      'slug',
+    ]);
     if (searchConditions) {
       whereConditions.OR = searchConditions.OR;
     }

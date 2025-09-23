@@ -16,14 +16,14 @@ export class PublicService {
     search?: string;
     orderBy?: 'newest' | 'oldest' | 'popular';
   }) {
-    const { 
-      page = 1, 
-      limit = 10, 
-      authorId, 
-      categoryId, 
-      tagId, 
-      search, 
-      orderBy = 'newest' 
+    const {
+      page = 1,
+      limit = 10,
+      authorId,
+      categoryId,
+      tagId,
+      search,
+      orderBy = 'newest',
     } = params || {};
 
     // Convert string parameters to numbers
@@ -69,26 +69,28 @@ export class PublicService {
           categories: {
             some: {
               category: {
-                name: { contains: searchTerm, mode: 'insensitive' }
-              }
-            }
-          }
+                name: { contains: searchTerm, mode: 'insensitive' },
+              },
+            },
+          },
         },
         // Search in tags
         {
           tags: {
             some: {
               tag: {
-                name: { contains: searchTerm, mode: 'insensitive' }
-              }
-            }
-          }
-        }
+                name: { contains: searchTerm, mode: 'insensitive' },
+              },
+            },
+          },
+        },
       ];
     }
 
     // Build order by
-    let orderByClause: Prisma.PostOrderByWithRelationInput = { publishedAt: 'desc' };
+    let orderByClause: Prisma.PostOrderByWithRelationInput = {
+      publishedAt: 'desc',
+    };
     if (orderBy === 'oldest') {
       orderByClause = { publishedAt: 'asc' };
     } else if (orderBy === 'popular') {
@@ -494,10 +496,13 @@ export class PublicService {
   }
 
   // Get public comments for a post
-  async getPublicComments(postId: string, params?: {
-    skip?: number;
-    take?: number;
-  }) {
+  async getPublicComments(
+    postId: string,
+    params?: {
+      skip?: number;
+      take?: number;
+    },
+  ) {
     const { skip, take } = params || {};
 
     return this.prisma.comment.findMany({
@@ -541,7 +546,11 @@ export class PublicService {
     }
 
     const searchTerm = q.trim();
-    const results: any = { posts: [], categories: [], tags: [] };
+    const results: {
+      posts: any[];
+      categories: any[];
+      tags: any[];
+    } = { posts: [], categories: [], tags: [] };
 
     if (type === 'all' || type === 'posts') {
       results.posts = await this.prisma.post.findMany({
@@ -643,8 +652,8 @@ export class PublicService {
       return [];
     }
 
-    const categoryIds = currentPost.categories.map(pc => pc.categoryId);
-    const tagIds = currentPost.tags.map(pt => pt.tagId);
+    const categoryIds = currentPost.categories.map((pc) => pc.categoryId);
+    const tagIds = currentPost.tags.map((pt) => pt.tagId);
 
     // Find related posts based on shared categories or tags
     const relatedPosts = await this.prisma.post.findMany({

@@ -34,8 +34,8 @@ export class CommentsService extends BaseService<Comment> {
     includeDeleted?: boolean;
     search?: string;
   }): Promise<Comment[]> {
-    const { skip, take, cursor, where, orderBy, includeDeleted, search } = params || {};
-    
+    const { skip, take, where, orderBy, includeDeleted, search } = params || {};
+
     // Build where conditions
     const whereConditions: Prisma.CommentWhereInput = {
       ...where,
@@ -62,16 +62,24 @@ export class CommentsService extends BaseService<Comment> {
 
   async findOne(id: string, includeDeleted: boolean = false): Promise<Comment> {
     try {
-      return await this.findUnique('comment', { id }, {
-        author: true,
-        post: true,
-      }, includeDeleted);
-    } catch (error) {
+      return await this.findUnique(
+        'comment',
+        { id },
+        {
+          author: true,
+          post: true,
+        },
+        includeDeleted,
+      );
+    } catch {
       throw new NotFoundException(`Comment with ID ${id} not found`);
     }
   }
 
-  async findByPost(postId: string, approvedOnly: boolean = true): Promise<Comment[]> {
+  async findByPost(
+    postId: string,
+    approvedOnly: boolean = true,
+  ): Promise<Comment[]> {
     return this.prisma.comment.findMany({
       where: {
         postId,
@@ -86,7 +94,10 @@ export class CommentsService extends BaseService<Comment> {
     });
   }
 
-  async update(id: string, updateCommentDto: UpdateCommentDto): Promise<Comment> {
+  async update(
+    id: string,
+    updateCommentDto: UpdateCommentDto,
+  ): Promise<Comment> {
     await this.findOne(id); // Check if comment exists
     return this.prisma.comment.update({
       where: { id },
@@ -119,10 +130,14 @@ export class CommentsService extends BaseService<Comment> {
 
   // Get deleted comments
   async findDeleted(params?: { search?: string }): Promise<Comment[]> {
-    const whereConditions: any = { deletedAt: { not: null } };
-    
+    const whereConditions: Prisma.CommentWhereInput = {
+      deletedAt: { not: null },
+    };
+
     // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(params?.search, ['content']);
+    const searchConditions = this.buildSearchConditions(params?.search, [
+      'content',
+    ]);
     if (searchConditions) {
       whereConditions.OR = searchConditions.OR;
     }

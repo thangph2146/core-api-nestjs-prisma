@@ -1,5 +1,9 @@
-import { IsString, IsBoolean, IsArray, IsObject } from 'class-validator';
-import { IsOptionalString, IsOptionalBoolean, IsOptionalArray } from '../../common/decorators/validation.decorators';
+import { IsString, IsObject } from 'class-validator';
+import {
+  IsOptionalString,
+  IsOptionalBoolean,
+  IsOptionalArray,
+} from '../../common/decorators/validation.decorators';
 
 export class CreatePostDto {
   @IsString()

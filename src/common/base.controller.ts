@@ -1,15 +1,10 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-  Query,
-} from '@nestjs/common';
+import { Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { BaseService } from './base.service';
-import { BulkDeleteDto, BulkRestoreDto, BulkHardDeleteDto } from './dto/bulk-operations.dto';
+import {
+  BulkDeleteDto,
+  BulkRestoreDto,
+  BulkHardDeleteDto,
+} from './dto/bulk-operations.dto';
 
 export interface BaseControllerOptions {
   modelName: string;
@@ -26,7 +21,7 @@ export interface BaseControllerOptions {
 export abstract class BaseController<T, CreateDto, UpdateDto> {
   constructor(
     protected readonly service: BaseService<T>,
-    protected readonly options: BaseControllerOptions
+    protected readonly options: BaseControllerOptions,
   ) {}
 
   @Post()

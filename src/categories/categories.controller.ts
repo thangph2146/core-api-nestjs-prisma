@@ -6,7 +6,11 @@ import { BaseController } from '../common/base.controller';
 import { Category } from '@prisma/client';
 
 @Controller('categories')
-export class CategoriesController extends BaseController<Category, CreateCategoryDto, UpdateCategoryDto> {
+export class CategoriesController extends BaseController<
+  Category,
+  CreateCategoryDto,
+  UpdateCategoryDto
+> {
   constructor(private readonly categoriesService: CategoriesService) {
     super(categoriesService, {
       modelName: 'category',

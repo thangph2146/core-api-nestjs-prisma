@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface BaseServiceOptions {
@@ -14,7 +14,7 @@ export abstract class BaseService<T> {
 
   constructor(
     protected prisma: PrismaService,
-    options?: Partial<BaseServiceOptions>
+    options?: Partial<BaseServiceOptions>,
   ) {
     this.options = {
       modelName: 'unknown',
@@ -25,7 +25,7 @@ export abstract class BaseService<T> {
 
   // Soft delete - chỉ đánh dấu deletedAt
   async softDelete(model: string, id: string): Promise<T> {
-    return this.prisma[model].update({
+    return await this.prisma[model].update({
       where: { id },
       data: { deletedAt: new Date() },
     });
@@ -33,23 +33,29 @@ export abstract class BaseService<T> {
 
   // Restore - xóa đánh dấu deletedAt
   async restoreRecord(model: string, id: string): Promise<T> {
-    return this.prisma[model].update({
+    return await this.prisma[model].update({
       where: { id },
       data: { deletedAt: null },
     });
   }
 
   // Bulk soft delete
-  async bulkSoftDelete(model: string, ids: string[]): Promise<{ count: number }> {
-    return this.prisma[model].updateMany({
+  async bulkSoftDelete(
+    model: string,
+    ids: string[],
+  ): Promise<{ count: number }> {
+    return await this.prisma[model].updateMany({
       where: { id: { in: ids } },
       data: { deletedAt: new Date() },
     });
   }
 
   // Bulk restore
-  async bulkRestoreRecords(model: string, ids: string[]): Promise<{ count: number }> {
-    return this.prisma[model].updateMany({
+  async bulkRestoreRecords(
+    model: string,
+    ids: string[],
+  ): Promise<{ count: number }> {
+    return await this.prisma[model].updateMany({
       where: { id: { in: ids } },
       data: { deletedAt: null },
     });
@@ -57,21 +63,24 @@ export abstract class BaseService<T> {
 
   // Hard delete - xóa vĩnh viễn
   async hardDeleteRecord(model: string, id: string): Promise<T> {
-    return this.prisma[model].delete({
+    return await this.prisma[model].delete({
       where: { id },
     });
   }
 
   // Bulk hard delete
-  async bulkHardDeleteRecords(model: string, ids: string[]): Promise<{ count: number }> {
-    return this.prisma[model].deleteMany({
+  async bulkHardDeleteRecords(
+    model: string,
+    ids: string[],
+  ): Promise<{ count: number }> {
+    return await this.prisma[model].deleteMany({
       where: { id: { in: ids } },
     });
   }
 
   // Generic find method with common patterns
   protected async findMany(
-    model: string, 
+    model: string,
     params?: {
       skip?: number;
       take?: number;
@@ -79,16 +88,17 @@ export abstract class BaseService<T> {
       orderBy?: any;
       include?: any;
       includeDeleted?: boolean;
-    }
+    },
   ): Promise<T[]> {
-    const { skip, take, where, orderBy, include, includeDeleted } = params || {};
-    
+    const { skip, take, where, orderBy, include, includeDeleted } =
+      params || {};
+
     const whereConditions = {
       ...where,
       ...(includeDeleted ? {} : { deletedAt: null }),
     };
 
-    return this.prisma[model].findMany({
+    return await this.prisma[model].findMany({
       skip,
       take,
       where: whereConditions,
@@ -99,7 +109,7 @@ export abstract class BaseService<T> {
 
   // Generic create method
   async create(data: any): Promise<T> {
-    return this.prisma[this.options.modelName].create({
+    return await this.prisma[this.options.modelName].create({
       data,
       include: this.options.defaultInclude,
     });
@@ -108,7 +118,7 @@ export abstract class BaseService<T> {
   // Generic update method
   async update(id: string, data: any): Promise<T> {
     await this.findOne(id);
-    return this.prisma[this.options.modelName].update({
+    return await this.prisma[this.options.modelName].update({
       where: { id },
       data,
       include: this.options.defaultInclude,
@@ -120,7 +130,7 @@ export abstract class BaseService<T> {
     model: string,
     where: any,
     include?: any,
-    includeDeleted: boolean = false
+    includeDeleted: boolean = false,
   ): Promise<T> {
     const result = await this.prisma[model].findUnique({
       where,
@@ -141,53 +151,68 @@ export abstract class BaseService<T> {
   // Build search conditions for common fields
   protected buildSearchConditions(
     search: string | undefined,
-    searchFields: string[]
-  ): { OR: Array<{ [key: string]: { contains: string; mode: 'insensitive' } }> } | undefined {
+    searchFields: string[],
+  ):
+    | {
+        OR: Array<{ [key: string]: { contains: string; mode: 'insensitive' } }>;
+      }
+    | undefined {
     if (!search || !search.trim()) {
       return undefined;
     }
 
     const searchTerm = search.trim();
     return {
-      OR: searchFields.map(field => ({
-        [field]: { contains: searchTerm, mode: 'insensitive' as const }
-      }))
+      OR: searchFields.map((field) => ({
+        [field]: { contains: searchTerm, mode: 'insensitive' as const },
+      })),
     };
   }
 
   // Generic findOne method using model name from options
   async findOne(id: string, includeDeleted: boolean = false): Promise<T> {
-    return this.findUnique(this.options.modelName, { id }, undefined, includeDeleted);
+    return this.findUnique(
+      this.options.modelName,
+      { id },
+      undefined,
+      includeDeleted,
+    );
   }
 
-      // Generic findAll method using model name from options
-      async findAll(params?: {
-        skip?: number;
-        take?: number;
-        where?: any;
-        orderBy?: any;
-        include?: any;
-        includeDeleted?: boolean;
-        search?: string;
-      }): Promise<T[]> {
-        const { search, ...otherParams } = params || {};
-        const searchConditions = this.buildSearchConditions(search, this.options.searchFields || []);
+  // Generic findAll method using model name from options
+  async findAll(params?: {
+    skip?: number;
+    take?: number;
+    where?: any;
+    orderBy?: any;
+    include?: any;
+    includeDeleted?: boolean;
+    search?: string;
+  }): Promise<T[]> {
+    const { search, ...otherParams } = params || {};
+    const searchConditions = this.buildSearchConditions(
+      search,
+      this.options.searchFields || [],
+    );
 
-        const whereConditions = {
-          ...otherParams?.where,
-          ...(searchConditions ? { OR: searchConditions.OR } : {}),
-        };
+    const whereConditions = {
+      ...otherParams?.where,
+      ...(searchConditions ? { OR: searchConditions.OR } : {}),
+    };
 
-        return this.findMany(this.options.modelName, {
-          ...otherParams,
-          where: whereConditions,
-        });
-      }
+    return this.findMany(this.options.modelName, {
+      ...otherParams,
+      where: whereConditions,
+    });
+  }
 
   // Generic findDeleted method
   async findDeleted(params?: { search?: string }): Promise<T[]> {
-    const searchConditions = this.buildSearchConditions(params?.search, this.options.searchFields || []);
-    
+    const searchConditions = this.buildSearchConditions(
+      params?.search,
+      this.options.searchFields || [],
+    );
+
     const whereConditions = {
       deletedAt: { not: null },
       ...(searchConditions ? { OR: searchConditions.OR } : {}),
@@ -217,17 +242,26 @@ export abstract class BaseService<T> {
   }
 
   // Generic bulkDelete method
-  async bulkDelete(bulkDeleteDto: { ids: string[] }): Promise<{ count: number }> {
+  async bulkDelete(bulkDeleteDto: {
+    ids: string[];
+  }): Promise<{ count: number }> {
     return this.bulkSoftDelete(this.options.modelName, bulkDeleteDto.ids);
   }
 
   // Generic bulkRestore method
-  async bulkRestore(bulkRestoreDto: { ids: string[] }): Promise<{ count: number }> {
+  async bulkRestore(bulkRestoreDto: {
+    ids: string[];
+  }): Promise<{ count: number }> {
     return this.bulkRestoreRecords(this.options.modelName, bulkRestoreDto.ids);
   }
 
   // Generic bulkHardDelete method
-  async bulkHardDelete(bulkHardDeleteDto: { ids: string[] }): Promise<{ count: number }> {
-    return this.bulkHardDeleteRecords(this.options.modelName, bulkHardDeleteDto.ids);
+  async bulkHardDelete(bulkHardDeleteDto: {
+    ids: string[];
+  }): Promise<{ count: number }> {
+    return this.bulkHardDeleteRecords(
+      this.options.modelName,
+      bulkHardDeleteDto.ids,
+    );
   }
 }

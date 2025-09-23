@@ -6,7 +6,11 @@ import { BaseController } from '../common/base.controller';
 import { Tag } from '@prisma/client';
 
 @Controller('tags')
-export class TagsController extends BaseController<Tag, CreateTagDto, UpdateTagDto> {
+export class TagsController extends BaseController<
+  Tag,
+  CreateTagDto,
+  UpdateTagDto
+> {
   constructor(private readonly tagsService: TagsService) {
     super(tagsService, {
       modelName: 'tag',
