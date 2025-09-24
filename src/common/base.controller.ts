@@ -8,8 +8,8 @@ import {
 
 export interface BaseControllerOptions {
   modelName: string;
-  createDto: any;
-  updateDto: any;
+  createDto: unknown;
+  updateDto: unknown;
   includeSlug?: boolean;
   customEndpoints?: Array<{
     method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
@@ -30,12 +30,12 @@ export abstract class BaseController<T, CreateDto, UpdateDto> {
   }
 
   @Get()
-  findAll(@Query() query: any) {
+  findAll(@Query() query: Record<string, unknown>) {
     return this.service.findAll(query);
   }
 
   @Get('deleted')
-  findDeleted(@Query() query: any) {
+  findDeleted(@Query() query: { search?: string }) {
     return this.service.findDeleted(query);
   }
 

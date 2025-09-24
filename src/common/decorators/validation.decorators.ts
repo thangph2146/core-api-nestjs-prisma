@@ -21,7 +21,9 @@ export function IsOptionalString() {
   return applyDecorators(
     IsOptional(),
     IsString(),
-    Transform(({ value }) => value?.trim()),
+    Transform(({ value }: { value: unknown }) =>
+      typeof value === 'string' ? value.trim() : value,
+    ),
   );
 }
 
@@ -36,9 +38,12 @@ export function IsOptionalNumber() {
 export function IsOptionalBoolean() {
   return applyDecorators(
     IsOptional(),
-    Transform(({ value }) => {
+    Transform(({ value }: { value: unknown }) => {
       if (typeof value === 'string') {
         return value === 'true';
+      }
+      if (typeof value === 'number') {
+        return value !== 0;
       }
       return value;
     }),
@@ -54,11 +59,13 @@ export function IsOptionalEmail() {
   return applyDecorators(
     IsOptional(),
     IsEmail(),
-    Transform(({ value }) => value?.toLowerCase().trim()),
+    Transform(({ value }: { value: unknown }) =>
+      typeof value === 'string' ? value.toLowerCase().trim() : value,
+    ),
   );
 }
 
-export function IsOptionalEnum(enumObject: any) {
+export function IsOptionalEnum(enumObject: Record<string, string | number>) {
   return applyDecorators(IsOptional(), IsEnum(enumObject));
 }
 
@@ -81,7 +88,9 @@ export function IsPage() {
     Type(() => Number),
     IsNumber(),
     Min(1),
-    Transform(({ value }) => Math.max(1, Number(value) || 1)),
+    Transform(({ value }: { value: unknown }) =>
+      Math.max(1, Number(value) || 1),
+    ),
   );
 }
 
@@ -92,7 +101,9 @@ export function IsLimit() {
     IsNumber(),
     Min(1),
     Max(100),
-    Transform(({ value }) => Math.min(100, Math.max(1, Number(value) || 10))),
+    Transform(({ value }: { value: unknown }) =>
+      Math.min(100, Math.max(1, Number(value) || 10)),
+    ),
   );
 }
 
@@ -101,7 +112,9 @@ export function IsOptionalSearch() {
   return applyDecorators(
     IsOptional(),
     IsString(),
-    Transform(({ value }) => value?.trim()),
+    Transform(({ value }: { value: unknown }) =>
+      typeof value === 'string' ? value.trim() : value,
+    ),
   );
 }
 
@@ -109,8 +122,8 @@ export function IsOptionalSortBy(allowedFields: string[]) {
   return applyDecorators(
     IsOptional(),
     IsString(),
-    Transform(({ value }) => {
-      if (value && !allowedFields.includes(value)) {
+    Transform(({ value }: { value: unknown }) => {
+      if (typeof value === 'string' && !allowedFields.includes(value)) {
         return allowedFields[0]; // Default to first allowed field
       }
       return value;
@@ -122,6 +135,8 @@ export function IsOptionalSortOrder() {
   return applyDecorators(
     IsOptional(),
     IsEnum(['asc', 'desc']),
-    Transform(({ value }) => value || 'desc'),
+    Transform(({ value }: { value: unknown }) =>
+      value === 'asc' || value === 'desc' ? value : 'desc',
+    ),
   );
 }

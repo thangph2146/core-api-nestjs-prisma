@@ -15,9 +15,10 @@ import { Prisma } from '@prisma/client';
 export class ErrorHandlingInterceptor implements NestInterceptor {
   private readonly logger = new Logger(ErrorHandlingInterceptor.name);
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    return next.handle().pipe(
-      map((data) => {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    const stream$ = next.handle() as Observable<unknown>;
+    return stream$.pipe(
+      map((data: unknown) => {
         // Transform successful responses
         if (data && typeof data === 'object') {
           return {
@@ -28,8 +29,10 @@ export class ErrorHandlingInterceptor implements NestInterceptor {
         }
         return data;
       }),
-      catchError((error) => {
-        this.logger.error('Error occurred:', error);
+      catchError((error: unknown) => {
+        // Prefer logging message and stack to avoid passing unknown
+        const err = error as Error;
+        this.logger.error(err.message, err.stack);
 
         // Handle Prisma errors
         if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -75,12 +78,10 @@ export class ErrorHandlingInterceptor implements NestInterceptor {
         }
 
         // Handle generic errors
+        const message =
+          (error as { message?: string }).message || 'Internal server error';
         return throwError(
-          () =>
-            new HttpException(
-              error.message || 'Internal server error',
-              HttpStatus.INTERNAL_SERVER_ERROR,
-            ),
+          () => new HttpException(message, HttpStatus.INTERNAL_SERVER_ERROR),
         );
       }),
     );
