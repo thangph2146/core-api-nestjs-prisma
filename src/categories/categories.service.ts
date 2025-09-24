@@ -12,6 +12,13 @@ export class CategoriesService extends BaseService<Category, CreateCategoryDto, 
       modelName: 'category',
       searchFields: ['name', 'description', 'slug'],
       defaultOrderBy: { name: 'asc' },
+      columnFilterConfig: {
+        name: { type: 'text' },
+        description: { type: 'text' },
+        slug: { type: 'text' },
+        createdAt: { type: 'date' },
+        updatedAt: { type: 'date' },
+      },
     });
   }
 
@@ -29,13 +36,20 @@ export class CategoriesService extends BaseService<Category, CreateCategoryDto, 
     orderBy?: Prisma.CategoryOrderByWithRelationInput;
     includeDeleted?: boolean;
     search?: string;
+    columnFilters?: Record<string, string>;
   }): Promise<Category[]> {
-    const { skip, take, where, orderBy, includeDeleted, search } = params || {};
+    const { skip, take, where, orderBy, includeDeleted, search, columnFilters } = params || {};
 
     // Build where conditions
     const whereConditions: Prisma.CategoryWhereInput = {
       ...where,
     };
+
+    // Apply column filter conditions
+    if (columnFilters) {
+      const columnFilterConditions = this.buildColumnFilterConditions(columnFilters);
+      Object.assign(whereConditions, columnFilterConditions);
+    }
 
     // Add search conditions if search parameter is provided
     const searchConditions = this.buildSearchConditions(search, [

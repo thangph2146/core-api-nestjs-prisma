@@ -12,6 +12,12 @@ export class TagsService extends BaseService<Tag, CreateTagDto, UpdateTagDto> {
       modelName: 'tag',
       searchFields: ['name', 'slug'],
       defaultOrderBy: { name: 'asc' },
+      columnFilterConfig: {
+        name: { type: 'text' },
+        slug: { type: 'text' },
+        createdAt: { type: 'date' },
+        updatedAt: { type: 'date' },
+      },
     });
   }
 
@@ -29,13 +35,20 @@ export class TagsService extends BaseService<Tag, CreateTagDto, UpdateTagDto> {
     orderBy?: Prisma.TagOrderByWithRelationInput;
     includeDeleted?: boolean;
     search?: string;
+    columnFilters?: Record<string, string>;
   }): Promise<Tag[]> {
-    const { skip, take, where, orderBy, includeDeleted, search } = params || {};
+    const { skip, take, where, orderBy, includeDeleted, search, columnFilters } = params || {};
 
     // Build where conditions
     const whereConditions: Prisma.TagWhereInput = {
       ...where,
     };
+
+    // Apply column filter conditions
+    if (columnFilters) {
+      const columnFilterConditions = this.buildColumnFilterConditions(columnFilters);
+      Object.assign(whereConditions, columnFilterConditions);
+    }
 
     // Add search conditions if search parameter is provided
     const searchConditions = this.buildSearchConditions(search, [

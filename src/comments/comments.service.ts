@@ -12,6 +12,16 @@ export class CommentsService extends BaseService<Comment, CreateCommentDto, Upda
       modelName: 'comment',
       searchFields: ['content'],
       defaultOrderBy: { createdAt: 'desc' },
+      columnFilterConfig: {
+        content: { type: 'text' },
+        approved: { type: 'boolean' },
+        createdAt: { type: 'date' },
+        updatedAt: { type: 'date' },
+        author: { type: 'nested', field: 'author', nestedFields: ['name', 'email'] },
+        post: { type: 'nested', field: 'post', nestedFields: ['title', 'slug'] },
+        authorId: { type: 'text' },
+        postId: { type: 'text' },
+      },
     });
   }
 
@@ -33,13 +43,20 @@ export class CommentsService extends BaseService<Comment, CreateCommentDto, Upda
     orderBy?: Prisma.CommentOrderByWithRelationInput;
     includeDeleted?: boolean;
     search?: string;
+    columnFilters?: Record<string, string>;
   }): Promise<Comment[]> {
-    const { skip, take, where, orderBy, includeDeleted, search } = params || {};
+    const { skip, take, where, orderBy, includeDeleted, search, columnFilters } = params || {};
 
     // Build where conditions
     const whereConditions: Prisma.CommentWhereInput = {
       ...where,
     };
+
+    // Apply column filter conditions
+    if (columnFilters) {
+      const columnFilterConditions = this.buildColumnFilterConditions(columnFilters);
+      Object.assign(whereConditions, columnFilterConditions);
+    }
 
     // Add search conditions if search parameter is provided
     const searchConditions = this.buildSearchConditions(search, ['content']);

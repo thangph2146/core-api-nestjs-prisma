@@ -41,19 +41,23 @@ export class UsersService extends BaseService<User, CreateUserDto, UpdateUserDto
     orderBy?: Prisma.UserOrderByWithRelationInput;
     includeDeleted?: boolean;
     search?: string;
+    columnFilters?: Record<string, string>;
   }): Promise<User[]> {
-    const { skip, take, where, orderBy, includeDeleted, search } = params || {};
+    const { skip, take, where, orderBy, includeDeleted, search, columnFilters } = params || {};
 
-    // Build where conditions
+    // Base where conditions
     const whereConditions: Prisma.UserWhereInput = {
       ...where,
     };
 
-    // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(search, [
-      'name',
-      'email',
-    ]);
+    // Apply column filter conditions
+    if (columnFilters) {
+      const columnFilterConditions = this.buildColumnFilterConditions(columnFilters);
+      Object.assign(whereConditions, columnFilterConditions);
+    }
+
+    // Apply search conditions
+    const searchConditions = this.buildSearchConditions(search, ['name', 'email']);
     if (searchConditions) {
       whereConditions.OR = searchConditions.OR;
     }
