@@ -1,6 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+export interface ColumnFilterConfig {
+  type: 'text' | 'boolean' | 'date' | 'number' | 'select' | 'nested';
+  field?: string; // For nested fields, specify the actual database field
+  nestedFields?: string[]; // For nested object filtering (e.g., ['name', 'email'] for author)
+  options?: Array<{ label: string; value: string }>; // For select type
+}
+
 export interface BaseServiceOptions {
   modelName: string;
   searchFields?: string[];
@@ -9,10 +16,15 @@ export interface BaseServiceOptions {
     | Record<string, unknown>
     | Array<Record<string, unknown>>
     | undefined;
+  columnFilterConfig?: Record<string, ColumnFilterConfig>;
 }
 
 @Injectable()
-export abstract class BaseService<T> {
+export abstract class BaseService<
+  T,
+  Create extends object = Record<string, unknown>,
+  Update extends object = Record<string, unknown>,
+> {
   protected options: BaseServiceOptions;
 
   constructor(
@@ -32,12 +44,12 @@ export abstract class BaseService<T> {
   private getDelegate<M>(model: string): {
     update: (args: {
       where: Record<string, unknown>;
-      data: Record<string, unknown>;
+      data: object;
       include?: Record<string, unknown>;
     }) => Promise<M>;
     updateMany: (args: {
       where?: Record<string, unknown>;
-      data: Record<string, unknown>;
+      data: object;
     }) => Promise<{ count: number }>;
     delete: (args: { where: Record<string, unknown> }) => Promise<M>;
     deleteMany: (args: {
@@ -51,7 +63,7 @@ export abstract class BaseService<T> {
       include?: Record<string, unknown>;
     }) => Promise<M[]>;
     create: (args: {
-      data: Record<string, unknown>;
+      data: object;
       include?: Record<string, unknown>;
     }) => Promise<M>;
     findUnique: (args: {
@@ -157,7 +169,7 @@ export abstract class BaseService<T> {
   }
 
   // Generic create method
-  async create(data: Record<string, unknown>): Promise<T> {
+  async create(data: Create): Promise<T> {
     const delegate = this.getDelegate<T>(this.options.modelName);
     return await delegate.create({
       data,
@@ -166,7 +178,7 @@ export abstract class BaseService<T> {
   }
 
   // Generic update method
-  async update(id: string, data: Record<string, unknown>): Promise<T> {
+  async update(id: string, data: Update): Promise<T> {
     await this.findOne(id);
     const delegate = this.getDelegate<T>(this.options.modelName);
     return await delegate.update({
@@ -224,6 +236,89 @@ export abstract class BaseService<T> {
     };
   }
 
+  // Build column filter conditions
+  protected buildColumnFilterConditions(
+    columnFilters: Record<string, string> | undefined,
+  ): Record<string, unknown> {
+    if (!columnFilters || Object.keys(columnFilters).length === 0) {
+      return {};
+    }
+
+    const conditions: Record<string, unknown> = {};
+    const config = this.options.columnFilterConfig || {};
+
+    Object.entries(columnFilters).forEach(([column, value]) => {
+      if (value && value.trim() !== '') {
+        const columnConfig = config[column];
+        
+        if (columnConfig) {
+          // Use configured filter type
+          switch (columnConfig.type) {
+            case 'boolean':
+              const field = columnConfig.field || column;
+              conditions[field] = value === 'true';
+              break;
+              
+            case 'date':
+              const dateField = columnConfig.field || column;
+              conditions[dateField] = {
+                gte: new Date(value),
+                lte: new Date(new Date(value).getTime() + 24 * 60 * 60 * 1000 - 1), // End of day
+              };
+              break;
+              
+            case 'number':
+              const numberField = columnConfig.field || column;
+              conditions[numberField] = Number(value);
+              break;
+              
+            case 'select':
+              const selectField = columnConfig.field || column;
+              conditions[selectField] = value;
+              break;
+              
+            case 'nested':
+              const nestedField = columnConfig.field || column;
+              if (columnConfig.nestedFields && columnConfig.nestedFields.length > 0) {
+                conditions[nestedField] = {
+                  OR: columnConfig.nestedFields.map(field => ({
+                    [field]: { contains: value, mode: 'insensitive' as const }
+                  }))
+                };
+              }
+              break;
+              
+            case 'text':
+            default:
+              const textField = columnConfig.field || column;
+              conditions[textField] = {
+                contains: value,
+                mode: 'insensitive' as const,
+              };
+              break;
+          }
+        } else {
+          // Fallback to auto-detection based on column name patterns
+          if (column.includes('Date') || column.includes('At')) {
+            conditions[column] = {
+              gte: new Date(value),
+              lte: new Date(new Date(value).getTime() + 24 * 60 * 60 * 1000 - 1),
+            };
+          } else if (column.includes('Id') || column === 'id') {
+            conditions[column] = value;
+          } else {
+            conditions[column] = {
+              contains: value,
+              mode: 'insensitive' as const,
+            };
+          }
+        }
+      }
+    });
+
+    return conditions;
+  }
+
   // Generic findOne method using model name from options
   async findOne(id: string, includeDeleted: boolean = false): Promise<T> {
     return this.findUnique(
@@ -243,15 +338,21 @@ export abstract class BaseService<T> {
     include?: Record<string, unknown>;
     includeDeleted?: boolean;
     search?: string;
+    columnFilters?: Record<string, string>;
   }): Promise<T[]> {
-    const { search, ...otherParams } = params || {};
+    const { search, columnFilters, ...otherParams } = params || {};
     const searchConditions = this.buildSearchConditions(
       search,
       this.options.searchFields || [],
     );
 
+    // Build column filter conditions
+    const columnFilterConditions =
+      this.buildColumnFilterConditions(columnFilters);
+
     const whereConditions = {
       ...otherParams?.where,
+      ...columnFilterConditions,
       ...(searchConditions ? { OR: searchConditions.OR } : {}),
     };
 

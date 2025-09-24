@@ -21,7 +21,7 @@ export class PostsController extends BaseController<
   }
 
   @Get('blog')
-  findForBlog(@Query() query: any) {
+  findForBlog(@Query() query: Record<string, unknown>) {
     return this.postsService.findForBlog(query);
   }
 

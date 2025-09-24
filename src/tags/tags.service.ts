@@ -6,7 +6,7 @@ import { Tag, Prisma } from '@prisma/client';
 import { BaseService } from '../common/base.service';
 
 @Injectable()
-export class TagsService extends BaseService<Tag> {
+export class TagsService extends BaseService<Tag, CreateTagDto, UpdateTagDto> {
   constructor(prisma: PrismaService) {
     super(prisma, {
       modelName: 'tag',

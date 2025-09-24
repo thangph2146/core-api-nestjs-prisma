@@ -6,12 +6,30 @@ import { Post, Prisma } from '@prisma/client';
 import { BaseService } from '../common/base.service';
 
 @Injectable()
-export class PostsService extends BaseService<Post> {
+export class PostsService extends BaseService<Post, CreatePostDto, UpdatePostDto> {
   constructor(prisma: PrismaService) {
     super(prisma, {
       modelName: 'post',
       searchFields: ['title', 'excerpt', 'content', 'slug'],
       defaultOrderBy: { createdAt: 'desc' },
+      columnFilterConfig: {
+        title: { type: 'text' },
+        excerpt: { type: 'text' },
+        slug: { type: 'text' },
+        published: { type: 'boolean' },
+        status: { type: 'boolean', field: 'published' },
+        author: { 
+          type: 'nested', 
+          field: 'author',
+          nestedFields: ['name', 'email'] 
+        },
+        createdAt: { type: 'date' },
+        updatedAt: { type: 'date' },
+        publishedAt: { type: 'date' },
+        authorId: { type: 'text' },
+        categoryId: { type: 'text' },
+        tagId: { type: 'text' },
+      },
     });
   }
 
@@ -63,6 +81,7 @@ export class PostsService extends BaseService<Post> {
     includeDeleted?: boolean;
     search?: string;
     published?: boolean | string;
+    columnFilters?: Record<string, string>;
   }): Promise<Post[]> {
     const {
       skip,
@@ -73,6 +92,7 @@ export class PostsService extends BaseService<Post> {
       includeDeleted,
       search,
       published,
+      columnFilters,
     } = params || {};
 
     // Convert published string to boolean
@@ -87,6 +107,13 @@ export class PostsService extends BaseService<Post> {
         ? { published: publishedBool }
         : {}),
     };
+
+    // Add column filter conditions if provided
+    if (columnFilters) {
+      const columnFilterConditions =
+        this.buildColumnFilterConditions(columnFilters);
+      Object.assign(whereConditions, columnFilterConditions);
+    }
 
     // Add search conditions if search parameter is provided
     const searchConditions = this.buildSearchConditions(search, [

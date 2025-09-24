@@ -18,9 +18,13 @@ export interface BaseControllerOptions {
   }>;
 }
 
-export abstract class BaseController<T, CreateDto, UpdateDto> {
+export abstract class BaseController<
+  T,
+  CreateDto extends object,
+  UpdateDto extends object,
+> {
   constructor(
-    protected readonly service: BaseService<T>,
+    protected readonly service: BaseService<T, CreateDto, UpdateDto>,
     protected readonly options: BaseControllerOptions,
   ) {}
 
@@ -31,7 +35,30 @@ export abstract class BaseController<T, CreateDto, UpdateDto> {
 
   @Get()
   findAll(@Query() query: Record<string, unknown>) {
-    return this.service.findAll(query);
+    // Normalize bracket-notation query params: columnFilters[foo]=bar -> columnFilters: { foo: 'bar' }
+    const normalized: Record<string, unknown> = { ...query };
+    const columnFilters: Record<string, string> =
+      (normalized.columnFilters as Record<string, string>) || {};
+
+    Object.keys(query).forEach((key) => {
+      const match = key.match(/^columnFilters\[(.+)\]$/);
+      if (match) {
+        const col = match[1];
+        const rawVal = query[key];
+        // Keep values as strings; type coercion will be handled in BaseService.buildColumnFilterConditions
+        if (rawVal !== undefined && rawVal !== null) {
+          columnFilters[col] = String(rawVal);
+        }
+        // Remove the bracketed key from the root-level query
+        delete (normalized as Record<string, unknown>)[key];
+      }
+    });
+
+    if (Object.keys(columnFilters).length > 0) {
+      normalized.columnFilters = columnFilters;
+    }
+
+    return this.service.findAll(normalized as Record<string, unknown>);
   }
 
   @Get('deleted')

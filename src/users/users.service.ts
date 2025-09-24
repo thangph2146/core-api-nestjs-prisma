@@ -7,12 +7,19 @@ import { BaseService } from '../common/base.service';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
-export class UsersService extends BaseService<User> {
+export class UsersService extends BaseService<User, CreateUserDto, UpdateUserDto> {
   constructor(prisma: PrismaService) {
     super(prisma, {
       modelName: 'user',
       searchFields: ['name', 'email'],
       defaultOrderBy: { createdAt: 'desc' },
+      columnFilterConfig: {
+        name: { type: 'text' },
+        email: { type: 'text' },
+        role: { type: 'select' },
+        createdAt: { type: 'date' },
+        updatedAt: { type: 'date' },
+      },
     });
   }
 

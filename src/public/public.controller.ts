@@ -7,7 +7,18 @@ export class PublicController {
 
   // Public blog posts - only published posts
   @Get('posts')
-  getPublicPosts(@Query() query: any) {
+  getPublicPosts(
+    @Query()
+    query: {
+      page?: number | string;
+      limit?: number | string;
+      authorId?: string;
+      categoryId?: string;
+      tagId?: string;
+      search?: string;
+      orderBy?: 'newest' | 'oldest' | 'popular';
+    },
+  ) {
     return this.publicService.getPublicPosts(query);
   }
 
@@ -19,7 +30,9 @@ export class PublicController {
 
   // Public categories - only active categories
   @Get('categories')
-  getPublicCategories(@Query() query: any) {
+  getPublicCategories(
+    @Query() query: { page?: number; limit?: number; search?: string },
+  ) {
     return this.publicService.getPublicCategories(query);
   }
 
@@ -31,7 +44,9 @@ export class PublicController {
 
   // Public tags - only active tags
   @Get('tags')
-  getPublicTags(@Query() query: any) {
+  getPublicTags(
+    @Query() query: { page?: number; limit?: number; search?: string },
+  ) {
     return this.publicService.getPublicTags(query);
   }
 
@@ -43,13 +58,29 @@ export class PublicController {
 
   // Public comments - only approved comments
   @Get('posts/:postId/comments')
-  getPublicComments(@Param('postId') postId: string, @Query() query: any) {
-    return this.publicService.getPublicComments(postId, query);
+  getPublicComments(
+    @Param('postId') postId: string,
+    @Query() query: { page?: number; limit?: number },
+  ) {
+    const { page = 1, limit = 10 } = query;
+    const skip = (page - 1) * limit;
+    return this.publicService.getPublicComments(postId, {
+      skip,
+      take: limit,
+    });
   }
 
   // Public search
   @Get('search')
-  searchPublicContent(@Query() query: any) {
+  searchPublicContent(
+    @Query()
+    query: {
+      q: string;
+      type?: 'posts' | 'categories' | 'tags' | 'all';
+      page?: number;
+      limit?: number;
+    },
+  ) {
     return this.publicService.searchPublicContent(query);
   }
 

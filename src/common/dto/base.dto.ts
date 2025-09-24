@@ -1,4 +1,4 @@
-import { IsString, IsDateString } from 'class-validator';
+import { IsString, IsDateString, IsOptional, IsObject } from 'class-validator';
 import {
   IsOptionalString,
   IsOptionalNumber,
@@ -26,6 +26,10 @@ export class BaseQueryDto {
 
   @IsOptionalSortOrder()
   sortOrder?: 'asc' | 'desc';
+
+  @IsOptional()
+  @IsObject()
+  columnFilters?: Record<string, string>;
 }
 
 export class PaginationDto {
@@ -46,7 +50,7 @@ export class PublicQueryDto extends BaseQueryDto {
   @IsOptionalUUID()
   tagId?: string;
 
-  @IsOptionalEnum(['newest', 'oldest', 'popular'])
+  @IsOptionalEnum({ newest: 'newest', oldest: 'oldest', popular: 'popular' })
   orderBy?: 'newest' | 'oldest' | 'popular';
 }
 

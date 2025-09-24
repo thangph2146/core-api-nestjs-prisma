@@ -6,7 +6,7 @@ import { Comment, Prisma } from '@prisma/client';
 import { BaseService } from '../common/base.service';
 
 @Injectable()
-export class CommentsService extends BaseService<Comment> {
+export class CommentsService extends BaseService<Comment, CreateCommentDto, UpdateCommentDto> {
   constructor(prisma: PrismaService) {
     super(prisma, {
       modelName: 'comment',

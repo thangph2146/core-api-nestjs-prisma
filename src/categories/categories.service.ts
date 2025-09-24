@@ -6,7 +6,7 @@ import { Category, Prisma } from '@prisma/client';
 import { BaseService } from '../common/base.service';
 
 @Injectable()
-export class CategoriesService extends BaseService<Category> {
+export class CategoriesService extends BaseService<Category, CreateCategoryDto, UpdateCategoryDto> {
   constructor(prisma: PrismaService) {
     super(prisma, {
       modelName: 'category',
