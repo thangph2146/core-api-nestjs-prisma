@@ -11,13 +11,7 @@ export class TagsService extends BaseService<Tag, CreateTagDto, UpdateTagDto> {
     super(prisma, {
       modelName: 'tag',
       searchFields: ['name', 'slug'],
-      defaultInclude: {
-        posts: {
-          include: {
-            post: true,
-          },
-        },
-      },
+      defaultInclude: {}, // Bỏ include posts để tránh circular reference
       defaultOrderBy: { name: 'asc' },
       columnFilterConfig: {
         name: { type: 'text' },
@@ -71,13 +65,7 @@ export class TagsService extends BaseService<Tag, CreateTagDto, UpdateTagDto> {
       take,
       where: whereConditions,
       orderBy,
-      include: {
-        posts: {
-          include: {
-            post: true,
-          },
-        },
-      },
+      include: {}, // Bỏ include posts để tránh circular reference
       includeDeleted,
     });
   }
@@ -87,17 +75,7 @@ export class TagsService extends BaseService<Tag, CreateTagDto, UpdateTagDto> {
       return await this.findUnique(
         'tag',
         { id },
-        {
-          posts: {
-            include: {
-              post: {
-                include: {
-                  author: true,
-                },
-              },
-            },
-          },
-        },
+        {}, // Bỏ include posts để tránh circular reference
         includeDeleted,
       );
     } catch {
@@ -108,17 +86,7 @@ export class TagsService extends BaseService<Tag, CreateTagDto, UpdateTagDto> {
   async findBySlug(slug: string): Promise<Tag> {
     const tag = await this.prisma.tag.findUnique({
       where: { slug },
-      include: {
-        posts: {
-          include: {
-            post: {
-              include: {
-                author: true,
-              },
-            },
-          },
-        },
-      },
+      // Bỏ include posts để tránh circular reference
     });
 
     if (!tag) {
@@ -170,13 +138,7 @@ export class TagsService extends BaseService<Tag, CreateTagDto, UpdateTagDto> {
 
     return this.findMany('tag', {
       where: whereConditions,
-      include: {
-        posts: {
-          include: {
-            post: true,
-          },
-        },
-      },
+      include: {}, // Bỏ include posts để tránh circular reference
       includeDeleted: true,
     });
   }
