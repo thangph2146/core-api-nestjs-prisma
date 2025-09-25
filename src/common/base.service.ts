@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface ColumnFilterConfig {
@@ -263,14 +263,14 @@ export abstract class BaseService<
     });
 
     if (!result) {
-      throw new Error(`${model} not found`);
+      throw new NotFoundException(`${model} not found`);
     }
 
     if (
       !includeDeleted &&
       (result as unknown as { deletedAt?: Date | null }).deletedAt
     ) {
-      throw new Error(`${model} not found`);
+      throw new NotFoundException(`${model} not found`);
     }
 
     return result;
@@ -289,14 +289,10 @@ export abstract class BaseService<
       return undefined;
     }
 
-    const searchTerm = search.trim().toLowerCase();
+    const searchTerm = search.trim();
     return {
       OR: searchFields.map((field) => ({
-        [field]: {
-          contains: searchTerm,
-          // mode: 'insensitive' chỉ hỗ trợ trên PostgreSQL, SQLite không hỗ trợ
-          // Sẽ sử dụng toLowerCase() ở phía trên để thay thế
-        },
+        [field]: { contains: searchTerm, mode: 'insensitive' },
       })),
     };
   }
@@ -345,11 +341,11 @@ export abstract class BaseService<
             case 'nested':
               const nestedField = columnConfig.field || column;
               if (columnConfig.nestedFields && columnConfig.nestedFields.length > 0) {
-                conditions[nestedField] = {
-                  OR: columnConfig.nestedFields.map(field => ({
-                    [field]: { contains: value.toLowerCase() }
-                  }))
-                };
+              conditions[nestedField] = {
+                OR: columnConfig.nestedFields.map(field => ({
+                  [field]: { contains: value, mode: 'insensitive' }
+                }))
+              };
               }
               break;
 
@@ -357,7 +353,7 @@ export abstract class BaseService<
             default:
               const textField = columnConfig.field || column;
               conditions[textField] = {
-                contains: value.toLowerCase(),
+                contains: value, mode: 'insensitive',
               };
               break;
           }
@@ -372,7 +368,7 @@ export abstract class BaseService<
             conditions[column] = value;
           } else {
             conditions[column] = {
-              contains: value.toLowerCase(),
+              contains: value, mode: 'insensitive',
             };
           }
         }

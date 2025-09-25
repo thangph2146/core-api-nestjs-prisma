@@ -10,7 +10,7 @@ export class PostsService extends BaseService<Post, CreatePostDto, UpdatePostDto
   constructor(prisma: PrismaService) {
     super(prisma, {
       modelName: 'post',
-      searchFields: ['title', 'excerpt', 'content', 'slug'],
+      searchFields: ['title', 'excerpt', 'slug'],
       defaultInclude: {
         author: true,
         categories: {
@@ -124,9 +124,23 @@ export class PostsService extends BaseService<Post, CreatePostDto, UpdatePostDto
 
     // Add column filter conditions if provided
     if (columnFilters) {
-      const columnFilterConditions =
-        this.buildColumnFilterConditions(columnFilters);
+      const columnFilterConditions = this.buildColumnFilterConditions(columnFilters);
       Object.assign(whereConditions, columnFilterConditions);
+
+      // Normalize many-to-many filters to Prisma structure
+      if (columnFilters.categoryId) {
+        whereConditions.categories = {
+          some: { categoryId: columnFilters.categoryId },
+        } as any;
+        // remove possible flat key injected by generic builder
+        delete (whereConditions as any).categoryId;
+      }
+      if (columnFilters.tagId) {
+        whereConditions.tags = {
+          some: { tagId: columnFilters.tagId },
+        } as any;
+        delete (whereConditions as any).tagId;
+      }
     }
 
     // Add search conditions if search parameter is provided

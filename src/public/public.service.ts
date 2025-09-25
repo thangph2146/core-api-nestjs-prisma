@@ -159,7 +159,7 @@ export class PublicService {
     const hasPrevPage = pageNum > 1;
 
     return {
-      data: posts,
+      items: posts,
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -308,7 +308,7 @@ export class PublicService {
     const hasPrevPage = page > 1;
 
     return {
-      data: categories,
+      items: categories,
       pagination: {
         page,
         limit,
@@ -430,7 +430,7 @@ export class PublicService {
     const hasPrevPage = page > 1;
 
     return {
-      data: tags,
+      items: tags,
       pagination: {
         page,
         limit,
