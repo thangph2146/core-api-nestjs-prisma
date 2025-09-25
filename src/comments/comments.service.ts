@@ -19,6 +19,8 @@ export class CommentsService extends BaseService<Comment, CreateCommentDto, Upda
       columnFilterConfig: {
         content: { type: 'text' },
         approved: { type: 'boolean' },
+        // Support UI alias `status` -> map to approved boolean
+        status: { type: 'boolean', field: 'approved' },
         createdAt: { type: 'date' },
         updatedAt: { type: 'date' },
         author: { type: 'nested', field: 'author', nestedFields: ['name', 'email'] },
