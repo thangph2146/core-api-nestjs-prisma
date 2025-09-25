@@ -11,6 +11,13 @@ export class CategoriesService extends BaseService<Category, CreateCategoryDto, 
     super(prisma, {
       modelName: 'category',
       searchFields: ['name', 'description', 'slug'],
+      defaultInclude: {
+        posts: {
+          include: {
+            post: true,
+          },
+        },
+      },
       defaultOrderBy: { name: 'asc' },
       columnFilterConfig: {
         name: { type: 'text' },
@@ -24,7 +31,7 @@ export class CategoriesService extends BaseService<Category, CreateCategoryDto, 
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
     return this.prisma.category.create({
-      data: createCategoryDto,
+      data: createCategoryDto,  
     });
   }
 

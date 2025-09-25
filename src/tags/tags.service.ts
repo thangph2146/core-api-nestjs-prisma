@@ -11,6 +11,13 @@ export class TagsService extends BaseService<Tag, CreateTagDto, UpdateTagDto> {
     super(prisma, {
       modelName: 'tag',
       searchFields: ['name', 'slug'],
+      defaultInclude: {
+        posts: {
+          include: {
+            post: true,
+          },
+        },
+      },
       defaultOrderBy: { name: 'asc' },
       columnFilterConfig: {
         name: { type: 'text' },

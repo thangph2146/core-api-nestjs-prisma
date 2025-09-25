@@ -12,6 +12,10 @@ export class UsersService extends BaseService<User, CreateUserDto, UpdateUserDto
     super(prisma, {
       modelName: 'user',
       searchFields: ['name', 'email'],
+      defaultInclude: {
+        posts: true,
+        comments: true,
+      },
       defaultOrderBy: { createdAt: 'desc' },
       columnFilterConfig: {
         name: { type: 'text' },

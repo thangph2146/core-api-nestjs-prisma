@@ -34,7 +34,7 @@ export abstract class BaseController<
   }
 
   @Get()
-  findAll(@Query() query: Record<string, unknown>) {
+  async findAll(@Query() query: Record<string, unknown>) {
     // Normalize bracket-notation query params: columnFilters[foo]=bar -> columnFilters: { foo: 'bar' }
     const normalized: Record<string, unknown> = { ...query };
     const columnFilters: Record<string, string> =
@@ -58,7 +58,30 @@ export abstract class BaseController<
       normalized.columnFilters = columnFilters;
     }
 
-    return this.service.findAll(normalized as Record<string, unknown>);
+    // Extract pagination params
+    const page = normalized.page ? Number(normalized.page) : undefined;
+    const limit = normalized.limit ? Number(normalized.limit) : undefined;
+
+    // Remove raw page/limit to avoid being treated as filters
+    delete (normalized as Record<string, unknown>).page;
+    delete (normalized as Record<string, unknown>).limit;
+
+    const result = await (this.service as any).findAllPaginated?.({
+      ...(normalized as Record<string, unknown>),
+      page,
+      limit,
+    });
+
+    // Fallback if service doesn't support pagination yet
+    if (!result) {
+      const items = await this.service.findAll(
+        normalized as Record<string, unknown>,
+      );
+      return items;
+    }
+
+    // Return paginated structure directly; interceptor will wrap with success and timestamp
+    return result;
   }
 
   @Get('deleted')

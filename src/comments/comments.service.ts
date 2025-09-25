@@ -11,6 +11,10 @@ export class CommentsService extends BaseService<Comment, CreateCommentDto, Upda
     super(prisma, {
       modelName: 'comment',
       searchFields: ['content'],
+      defaultInclude: {
+        author: true,
+        post: true,
+      },
       defaultOrderBy: { createdAt: 'desc' },
       columnFilterConfig: {
         content: { type: 'text' },

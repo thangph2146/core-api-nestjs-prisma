@@ -70,6 +70,7 @@ export abstract class BaseService<
       where: Record<string, unknown>;
       include?: Record<string, unknown>;
     }) => Promise<M | null>;
+    count: (args: { where?: Record<string, unknown> }) => Promise<number>;
   } {
     // Cast through unknown to avoid any-unsafe; we constrain the shape via the returned interface
     return (this.prisma as unknown as Record<string, unknown>)[
@@ -168,6 +169,66 @@ export abstract class BaseService<
     });
   }
 
+  // Generic paginated find method with common patterns
+  protected async findManyPaginated(
+    model: string,
+    params?: {
+      page?: number;
+      limit?: number;
+      where?: Record<string, unknown>;
+      orderBy?: Record<string, unknown> | Array<Record<string, unknown>>;
+      include?: Record<string, unknown>;
+      includeDeleted?: boolean;
+    },
+  ): Promise<{
+    items: T[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPrevPage: boolean;
+    };
+  }> {
+    const { page = 1, limit = 10, where, orderBy, include, includeDeleted } =
+      params || {};
+
+    const p = Math.max(1, Number.isFinite(page) ? page : 1);
+    const l = Math.max(1, Math.min(100, Number.isFinite(limit) ? limit : 10));
+    const skip = (p - 1) * l;
+
+    const whereConditions = {
+      ...where,
+      ...(includeDeleted ? {} : { deletedAt: null }),
+    };
+
+    const delegate = this.getDelegate<T>(model);
+    const [items, total] = await Promise.all([
+      delegate.findMany({
+        skip,
+        take: l,
+        where: whereConditions,
+        orderBy: orderBy || this.options.defaultOrderBy,
+        include: include || this.options.defaultInclude,
+      }),
+      delegate.count({ where: whereConditions }),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(total / l));
+    return {
+      items,
+      pagination: {
+        page: p,
+        limit: l,
+        total,
+        totalPages,
+        hasNextPage: p < totalPages,
+        hasPrevPage: p > 1,
+      },
+    };
+  }
+
   // Generic create method
   async create(data: Create): Promise<T> {
     const delegate = this.getDelegate<T>(this.options.modelName);
@@ -221,17 +282,21 @@ export abstract class BaseService<
     searchFields: string[],
   ):
     | {
-        OR: Array<{ [key: string]: { contains: string; mode: 'insensitive' } }>;
+        OR: Array<{ [key: string]: { contains: string; mode?: 'insensitive' } }>;
       }
     | undefined {
     if (!search || !search.trim()) {
       return undefined;
     }
 
-    const searchTerm = search.trim();
+    const searchTerm = search.trim().toLowerCase();
     return {
       OR: searchFields.map((field) => ({
-        [field]: { contains: searchTerm, mode: 'insensitive' as const },
+        [field]: {
+          contains: searchTerm,
+          // mode: 'insensitive' chỉ hỗ trợ trên PostgreSQL, SQLite không hỗ trợ
+          // Sẽ sử dụng toLowerCase() ở phía trên để thay thế
+        },
       })),
     };
   }
@@ -282,18 +347,17 @@ export abstract class BaseService<
               if (columnConfig.nestedFields && columnConfig.nestedFields.length > 0) {
                 conditions[nestedField] = {
                   OR: columnConfig.nestedFields.map(field => ({
-                    [field]: { contains: value, mode: 'insensitive' as const }
+                    [field]: { contains: value.toLowerCase() }
                   }))
                 };
               }
               break;
-              
+
             case 'text':
             default:
               const textField = columnConfig.field || column;
               conditions[textField] = {
-                contains: value,
-                mode: 'insensitive' as const,
+                contains: value.toLowerCase(),
               };
               break;
           }
@@ -308,8 +372,7 @@ export abstract class BaseService<
             conditions[column] = value;
           } else {
             conditions[column] = {
-              contains: value,
-              mode: 'insensitive' as const,
+              contains: value.toLowerCase(),
             };
           }
         }
@@ -357,6 +420,49 @@ export abstract class BaseService<
     };
 
     return this.findMany(this.options.modelName, {
+      ...otherParams,
+      where: whereConditions,
+    });
+  }
+
+  // Generic paginated findAll using model name from options
+  async findAllPaginated(params?: {
+    page?: number;
+    limit?: number;
+    where?: Record<string, unknown>;
+    orderBy?: Record<string, unknown> | Array<Record<string, unknown>>;
+    include?: Record<string, unknown>;
+    includeDeleted?: boolean;
+    search?: string;
+    columnFilters?: Record<string, string>;
+  }): Promise<{
+    items: T[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPrevPage: boolean;
+    };
+  }> {
+    const { search, columnFilters, ...otherParams } = params || {};
+    const searchConditions = this.buildSearchConditions(
+      search,
+      this.options.searchFields || [],
+    );
+
+    // Build column filter conditions
+    const columnFilterConditions =
+      this.buildColumnFilterConditions(columnFilters);
+
+    const whereConditions = {
+      ...otherParams?.where,
+      ...columnFilterConditions,
+      ...(searchConditions ? { OR: searchConditions.OR } : {}),
+    };
+
+    return this.findManyPaginated(this.options.modelName, {
       ...otherParams,
       where: whereConditions,
     });

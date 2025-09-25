@@ -11,6 +11,20 @@ export class PostsService extends BaseService<Post, CreatePostDto, UpdatePostDto
     super(prisma, {
       modelName: 'post',
       searchFields: ['title', 'excerpt', 'content', 'slug'],
+      defaultInclude: {
+        author: true,
+        categories: {
+          include: {
+            category: true,
+          },
+        },
+        tags: {
+          include: {
+            tag: true,
+          },
+        },
+        comments: true,
+      },
       defaultOrderBy: { createdAt: 'desc' },
       columnFilterConfig: {
         title: { type: 'text' },
