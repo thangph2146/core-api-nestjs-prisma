@@ -1,11 +1,14 @@
 import { Controller, Get, Query, Param } from '@nestjs/common';
+import { Public } from '../common/decorators/public.decorator';
 import { PublicService } from './public.service';
 
+@Public()
 @Controller('public')
 export class PublicController {
   constructor(private readonly publicService: PublicService) {}
 
   // Public blog posts - only published posts
+  @Public()
   @Get('posts')
   getPublicPosts(
     @Query()
@@ -23,12 +26,14 @@ export class PublicController {
   }
 
   // Public post by slug
+  @Public()
   @Get('posts/slug/:slug')
   getPublicPostBySlug(@Param('slug') slug: string) {
     return this.publicService.getPublicPostBySlug(slug);
   }
 
   // Public categories - only active categories
+  @Public()
   @Get('categories')
   getPublicCategories(
     @Query() query: { page?: number; limit?: number; search?: string },
@@ -37,12 +42,14 @@ export class PublicController {
   }
 
   // Public category by slug
+  @Public()
   @Get('categories/slug/:slug')
   getPublicCategoryBySlug(@Param('slug') slug: string) {
     return this.publicService.getPublicCategoryBySlug(slug);
   }
 
   // Public tags - only active tags
+  @Public()
   @Get('tags')
   getPublicTags(
     @Query() query: { page?: number; limit?: number; search?: string },
@@ -51,12 +58,14 @@ export class PublicController {
   }
 
   // Public tag by slug
+  @Public()
   @Get('tags/slug/:slug')
   getPublicTagBySlug(@Param('slug') slug: string) {
     return this.publicService.getPublicTagBySlug(slug);
   }
 
   // Public comments - only approved comments
+  @Public()
   @Get('posts/:postId/comments')
   getPublicComments(
     @Param('postId') postId: string,
@@ -71,6 +80,7 @@ export class PublicController {
   }
 
   // Public search
+  @Public()
   @Get('search')
   searchPublicContent(
     @Query()
@@ -85,6 +95,7 @@ export class PublicController {
   }
 
   // Get related posts
+  @Public()
   @Get('posts/:postId/related')
   getRelatedPosts(
     @Param('postId') postId: string,
