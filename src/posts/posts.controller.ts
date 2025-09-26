@@ -30,11 +30,6 @@ export class PostsController extends BaseController<
     return this.postsService.findBySlug(slug);
   }
 
-  @Get('dashboard/stats')
-  async getDashboardStats() {
-    return this.postsService.getDashboardStats();
-  }
-
   @Patch(':id/publish')
   publish(@Param('id') id: string) {
     return this.postsService.publish(id);

@@ -10,6 +10,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { TagsModule } from './tags/tags.module';
 import { CommentsModule } from './comments/comments.module';
 import { PublicModule } from './public/public.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { PublicModule } from './public/public.module';
     TagsModule,
     CommentsModule,
     PublicModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],
