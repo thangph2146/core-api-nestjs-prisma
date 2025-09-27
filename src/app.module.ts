@@ -4,13 +4,16 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { CommonModule } from './common/common.module';
-import { UsersModule } from './users/users.module';
-import { PostsModule } from './posts/posts.module';
-import { CategoriesModule } from './categories/categories.module';
-import { TagsModule } from './tags/tags.module';
-import { CommentsModule } from './comments/comments.module';
+import { UsersModule } from './admin/users/users.module';
+import { PostsModule } from './admin/posts/posts.module';
+import { CategoriesModule } from './admin/categories/categories.module';
+import { TagsModule } from './admin/tags/tags.module';
+import { CommentsModule } from './admin/comments/comments.module';
 import { PublicModule } from './public/public.module';
-import { DashboardModule } from './dashboard/dashboard.module';
+import { DashboardModule } from './admin/dashboard/dashboard.module';
+import { RolesModule } from './admin/roles/roles.module';
+import { PermissionsModule } from './admin/permissions/permissions.module';
+import { UserRolesModule } from './admin/user-roles/user-roles.module';
 
 @Module({
   imports: [
@@ -24,6 +27,9 @@ import { DashboardModule } from './dashboard/dashboard.module';
     CommentsModule,
     PublicModule,
     DashboardModule,
+    RolesModule,
+    PermissionsModule,
+    UserRolesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -66,22 +66,13 @@ export abstract class BaseController<
     delete (normalized as Record<string, unknown>).page;
     delete (normalized as Record<string, unknown>).limit;
 
-    const result = await (this.service as any).findAllPaginated?.({
-      ...(normalized as Record<string, unknown>),
-      page,
-      limit,
-    });
-
-    // Fallback if service doesn't support pagination yet
-    if (!result) {
-      const items = await this.service.findAll(
-        normalized as Record<string, unknown>,
-      );
-      return items;
-    }
-
-    // Return paginated structure directly; interceptor will wrap with success and timestamp
-    return result;
+    // Use findAll method from service (all modules implement this)
+    const items = await (this.service as any).findAll(
+      normalized as Record<string, unknown>,
+    );
+    
+    // Return items directly; interceptor will wrap with success and timestamp
+    return items;
   }
 
   @Get('deleted')
