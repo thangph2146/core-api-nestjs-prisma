@@ -2,6 +2,8 @@ import { Injectable, UnauthorizedException, ConflictException, BadRequestExcepti
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto, RegisterDto, RefreshTokenDto } from './dto/auth.dto';
+import { SessionService } from './session.service';
+import { Request } from 'express';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -9,9 +11,10 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly sessionService: SessionService,
   ) {}
 
-  async login(loginDto: LoginDto) {
+  async login(loginDto: LoginDto, req?: Request) {
     try {
       const { email, password } = loginDto;
 
@@ -61,6 +64,19 @@ export class AuthService {
       // Tạo tokens
       const tokens = await this.generateTokens(user);
 
+      // Tạo session
+      const sessionInfo = req ? this.sessionService.extractSessionInfoFromRequest(req) : {};
+      const expiresAt = new Date(Date.now() + tokens.expiresIn * 1000);
+      
+      const session = await this.sessionService.createSession({
+        userId: user.id,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        userAgent: sessionInfo.userAgent,
+        ipAddress: sessionInfo.ipAddress,
+        expiresAt,
+      });
+
       // Lấy permissions của user
       const permissions = this.extractUserPermissions(user);
 
@@ -86,6 +102,12 @@ export class AuthService {
               description: ur.role.description,
             },
           })),
+          session: {
+            id: session.id,
+            lastActivity: session.lastActivity,
+            userAgent: session.userAgent,
+            ipAddress: session.ipAddress,
+          },
         },
         timestamp: new Date().toISOString(),
       };
@@ -237,16 +259,26 @@ export class AuthService {
     }
   }
 
-  async logout(userId: string) {
-    // Trong thực tế, bạn có thể lưu token vào blacklist
-    // Ở đây chúng ta chỉ trả về success
-    return {
-      success: true,
-      data: {
-        message: 'Đăng xuất thành công',
-      },
-      timestamp: new Date().toISOString(),
-    };
+  async logout(userId: string, accessToken?: string) {
+    try {
+      // Invalidate session
+      if (accessToken) {
+        await this.sessionService.invalidateSessionByAccessToken(accessToken);
+      } else {
+        // Invalidate all sessions for user if no specific token provided
+        await this.sessionService.invalidateAllUserSessions(userId);
+      }
+
+      return {
+        success: true,
+        data: {
+          message: 'Đăng xuất thành công',
+        },
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      throw new InternalServerErrorException('Lỗi hệ thống khi đăng xuất');
+    }
   }
 
   async getProfile(userId: string) {

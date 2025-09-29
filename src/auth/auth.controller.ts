@@ -30,8 +30,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(RateLimitGuard, LocalAuthGuard)
   @AuthRateLimit()
-  async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  async login(@Body() loginDto: LoginDto, @Request() req) {
+    return this.authService.login(loginDto, req);
   }
 
   @Post('register')
@@ -58,7 +58,8 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @DeleteOperation('User Session')
   async logout(@Request() req) {
-    return this.authService.logout(req.user.id);
+    const accessToken = req.headers.authorization?.replace('Bearer ', '');
+    return this.authService.logout(req.user.id, accessToken);
   }
 
   @Get('profile')
