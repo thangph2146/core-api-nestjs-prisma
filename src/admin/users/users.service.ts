@@ -49,30 +49,18 @@ export class UsersService extends BaseService<User, CreateUserDto, UpdateUserDto
   }): Promise<User[]> {
     const { skip, take, where, orderBy, includeDeleted, search, columnFilters } = params || {};
 
-    // Base where conditions
-    const whereConditions: Prisma.UserWhereInput = {
-      ...where,
-    };
-
-    // Apply column filter conditions
-    if (columnFilters) {
-      const columnFilterConditions = this.buildColumnFilterConditions(columnFilters);
-      Object.assign(whereConditions, columnFilterConditions);
-    }
-
-    // Apply search conditions
-    const searchConditions = this.buildSearchConditions(search, ['name', 'email']);
-    if (searchConditions) {
-      whereConditions.OR = searchConditions.OR;
-    }
-
-    return this.findMany('user', {
-      skip,
-      take,
-      where: whereConditions,
+    // Use the new paginated method for consistency
+    const result = await this.findManyPaginatedWithFilters('user', {
+      page: skip ? Math.floor(skip / (take || 10)) + 1 : 1,
+      limit: take || 10,
+      where,
       orderBy,
       includeDeleted,
+      search,
+      columnFilters,
     });
+    
+    return result.items;
   }
 
   async findOne(id: string, includeDeleted: boolean = false): Promise<User> {
@@ -125,25 +113,29 @@ export class UsersService extends BaseService<User, CreateUserDto, UpdateUserDto
   // Bulk operations
 
   // Get deleted users
-  async findDeleted(params?: { search?: string }): Promise<User[]> {
-    const whereConditions: Prisma.UserWhereInput = { deletedAt: { not: null } };
-
-    // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(params?.search, [
-      'name',
-      'email',
-    ]);
-    if (searchConditions) {
-      whereConditions.OR = searchConditions.OR;
-    }
-
-    return this.findMany('user', {
-      where: whereConditions,
-      include: {
-        posts: true,
-        comments: true,
-      },
+  async findDeleted(params?: { 
+    search?: string; 
+    columnFilters?: Record<string, string>;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    items: User[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPrevPage: boolean;
+    };
+  }> {
+    return this.findManyPaginatedWithFilters('user', {
+      page: params?.page || 1,
+      limit: params?.limit || 10,
+      where: { deletedAt: { not: null } },
       includeDeleted: true,
+      search: params?.search,
+      columnFilters: params?.columnFilters,
     });
   }
 }

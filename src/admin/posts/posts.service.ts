@@ -100,7 +100,6 @@ export class PostsService extends BaseService<Post, CreatePostDto, UpdatePostDto
     const {
       skip,
       take,
-      cursor,
       where,
       orderBy,
       includeDeleted,
@@ -122,58 +121,30 @@ export class PostsService extends BaseService<Post, CreatePostDto, UpdatePostDto
         : {}),
     };
 
-    // Add column filter conditions if provided
-    if (columnFilters) {
-      const columnFilterConditions = this.buildColumnFilterConditions(columnFilters);
-      Object.assign(whereConditions, columnFilterConditions);
-
-      // Normalize many-to-many filters to Prisma structure
-      if (columnFilters.categoryId) {
-        whereConditions.categories = {
-          some: { categoryId: columnFilters.categoryId },
-        } as any;
-        // remove possible flat key injected by generic builder
-        delete (whereConditions as any).categoryId;
-      }
-      if (columnFilters.tagId) {
-        whereConditions.tags = {
-          some: { tagId: columnFilters.tagId },
-        } as any;
-        delete (whereConditions as any).tagId;
-      }
+    // Handle many-to-many filters
+    if (columnFilters?.categoryId) {
+      whereConditions.categories = {
+        some: { categoryId: columnFilters.categoryId },
+      } as any;
+    }
+    if (columnFilters?.tagId) {
+      whereConditions.tags = {
+        some: { tagId: columnFilters.tagId },
+      } as any;
     }
 
-    // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(search, [
-      'title',
-      'excerpt',
-      'slug',
-    ]);
-    if (searchConditions) {
-      whereConditions.OR = searchConditions.OR;
-    }
-
-    return this.prisma.post.findMany({
-      skip,
-      take,
-      cursor,
+    // Use the new paginated method for consistency
+    const result = await this.findManyPaginatedWithFilters('post', {
+      page: skip ? Math.floor(skip / (take || 10)) + 1 : 1,
+      limit: take || 10,
       where: whereConditions,
       orderBy,
-      include: {
-        author: true,
-        categories: {
-          include: {
-            category: true,
-          },
-        },
-        tags: {
-          include: {
-            tag: true,
-          },
-        },
-        comments: true,
-      },
+      includeDeleted,
+      search,
+      columnFilters,
     });
+    
+    return result.items;
   }
 
   // Optimized method for blog listing - only returns necessary data
@@ -428,35 +399,29 @@ export class PostsService extends BaseService<Post, CreatePostDto, UpdatePostDto
   // Bulk operations
 
   // Get deleted posts
-  async findDeleted(params?: { search?: string }): Promise<Post[]> {
-    const whereConditions: Prisma.PostWhereInput = { deletedAt: { not: null } };
-
-    // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(params?.search, [
-      'title',
-      'excerpt',
-      'slug',
-    ]);
-    if (searchConditions) {
-      whereConditions.OR = searchConditions.OR;
-    }
-
-    return this.prisma.post.findMany({
-      where: whereConditions,
-      include: {
-        author: true,
-        categories: {
-          include: {
-            category: true,
-          },
-        },
-        tags: {
-          include: {
-            tag: true,
-          },
-        },
-        comments: true,
-      },
+  async findDeleted(params?: { 
+    search?: string; 
+    columnFilters?: Record<string, string>;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    items: Post[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPrevPage: boolean;
+    };
+  }> {
+    return this.findManyPaginatedWithFilters('post', {
+      page: params?.page || 1,
+      limit: params?.limit || 10,
+      where: { deletedAt: { not: null } },
+      includeDeleted: true,
+      search: params?.search,
+      columnFilters: params?.columnFilters,
     });
   }
 }

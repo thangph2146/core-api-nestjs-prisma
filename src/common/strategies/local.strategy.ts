@@ -22,6 +22,9 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
     }
 
+    if (!user.password) {
+      throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
+    }
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Email hoặc mật khẩu không đúng');

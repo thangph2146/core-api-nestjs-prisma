@@ -20,7 +20,7 @@ export function RateLimit(options: RateLimitOptions) {
 export function AuthRateLimit() {
   return RateLimit({
     windowMs: 15 * 60 * 1000, // 15 phút
-    max: 5, // 5 lần thử trong 15 phút
+    max: 20, // 20 lần thử trong 15 phút
     message: 'Quá nhiều lần thử đăng nhập. Vui lòng thử lại sau 15 phút.',
     skipSuccessfulRequests: true,
   });

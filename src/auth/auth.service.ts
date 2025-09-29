@@ -45,6 +45,9 @@ export class AuthService {
       }
 
       // Kiểm tra mật khẩu
+      if (!user.password) {
+        throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
+      }
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
         throw new UnauthorizedException('Email hoặc mật khẩu không đúng');

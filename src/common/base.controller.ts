@@ -66,13 +66,36 @@ export abstract class BaseController<
     delete (normalized as Record<string, unknown>).page;
     delete (normalized as Record<string, unknown>).limit;
 
-    // Use findAll method from service (all modules implement this)
-    const items = await (this.service as any).findAll(
-      normalized as Record<string, unknown>,
-    );
+    // Use findManyPaginatedWithFilters method from BaseService for proper pagination structure
+    console.log('BaseController: Calling findManyPaginatedWithFilters with:', {
+      modelName: this.options.modelName,
+      page,
+      limit,
+      normalized
+    });
     
-    // Return items directly; interceptor will wrap with success and timestamp
-    return items;
+    try {
+      const result = await (this.service as any).findManyPaginatedWithFilters(
+        this.options.modelName,
+        {
+          page,
+          limit,
+          ...normalized as Record<string, unknown>,
+        }
+      );
+      
+      console.log('BaseController: Result from findManyPaginatedWithFilters:', result);
+      
+      // Return paginated result; interceptor will wrap with success and timestamp
+      return result;
+    } catch (error) {
+      console.error('BaseController: Error calling findManyPaginatedWithFilters:', error);
+      // Fallback to original findAll method
+      const items = await (this.service as any).findAll(
+        normalized as Record<string, unknown>,
+      );
+      return items;
+    }
   }
 
   @Get('deleted')

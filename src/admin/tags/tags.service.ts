@@ -40,34 +40,18 @@ export class TagsService extends BaseService<Tag, CreateTagDto, UpdateTagDto> {
   }): Promise<Tag[]> {
     const { skip, take, where, orderBy, includeDeleted, search, columnFilters } = params || {};
 
-    // Build where conditions
-    const whereConditions: Prisma.TagWhereInput = {
-      ...where,
-    };
-
-    // Apply column filter conditions
-    if (columnFilters) {
-      const columnFilterConditions = this.buildColumnFilterConditions(columnFilters);
-      Object.assign(whereConditions, columnFilterConditions);
-    }
-
-    // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(search, [
-      'name',
-      'slug',
-    ]);
-    if (searchConditions) {
-      whereConditions.OR = searchConditions.OR;
-    }
-
-    return this.findMany('tag', {
-      skip,
-      take,
-      where: whereConditions,
+    // Use the new paginated method for consistency
+    const result = await this.findManyPaginatedWithFilters('tag', {
+      page: skip ? Math.floor(skip / (take || 10)) + 1 : 1,
+      limit: take || 10,
+      where,
       orderBy,
-      include: {}, // Bỏ include posts để tránh circular reference
       includeDeleted,
+      search,
+      columnFilters,
     });
+    
+    return result.items;
   }
 
   async findOne(id: string, includeDeleted: boolean = false): Promise<Tag> {
@@ -124,22 +108,29 @@ export class TagsService extends BaseService<Tag, CreateTagDto, UpdateTagDto> {
   // Bulk operations
 
   // Get deleted tags
-  async findDeleted(params?: { search?: string }): Promise<Tag[]> {
-    const whereConditions: Prisma.TagWhereInput = { deletedAt: { not: null } };
-
-    // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(params?.search, [
-      'name',
-      'slug',
-    ]);
-    if (searchConditions) {
-      whereConditions.OR = searchConditions.OR;
-    }
-
-    return this.findMany('tag', {
-      where: whereConditions,
-      include: {}, // Bỏ include posts để tránh circular reference
+  async findDeleted(params?: { 
+    search?: string; 
+    columnFilters?: Record<string, string>;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    items: Tag[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPrevPage: boolean;
+    };
+  }> {
+    return this.findManyPaginatedWithFilters('tag', {
+      page: params?.page || 1,
+      limit: params?.limit || 10,
+      where: { deletedAt: { not: null } },
       includeDeleted: true,
+      search: params?.search,
+      columnFilters: params?.columnFilters,
     });
   }
 }

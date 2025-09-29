@@ -53,34 +53,18 @@ export class CommentsService extends BaseService<Comment, CreateCommentDto, Upda
   }): Promise<Comment[]> {
     const { skip, take, where, orderBy, includeDeleted, search, columnFilters } = params || {};
 
-    // Build where conditions
-    const whereConditions: Prisma.CommentWhereInput = {
-      ...where,
-    };
-
-    // Apply column filter conditions
-    if (columnFilters) {
-      const columnFilterConditions = this.buildColumnFilterConditions(columnFilters);
-      Object.assign(whereConditions, columnFilterConditions);
-    }
-
-    // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(search, ['content']);
-    if (searchConditions) {
-      whereConditions.OR = searchConditions.OR;
-    }
-
-    return this.findMany('comment', {
-      skip,
-      take,
-      where: whereConditions,
+    // Use the new paginated method for consistency
+    const result = await this.findManyPaginatedWithFilters('comment', {
+      page: skip ? Math.floor(skip / (take || 10)) + 1 : 1,
+      limit: take || 10,
+      where,
       orderBy,
-      include: {
-        author: true,
-        post: true,
-      },
       includeDeleted,
+      search,
+      columnFilters,
     });
+    
+    return result.items;
   }
 
   async findOne(id: string, includeDeleted: boolean = false): Promise<Comment> {
@@ -152,26 +136,29 @@ export class CommentsService extends BaseService<Comment, CreateCommentDto, Upda
   // Bulk operations
 
   // Get deleted comments
-  async findDeleted(params?: { search?: string }): Promise<Comment[]> {
-    const whereConditions: Prisma.CommentWhereInput = {
-      deletedAt: { not: null },
+  async findDeleted(params?: { 
+    search?: string; 
+    columnFilters?: Record<string, string>;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    items: Comment[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPrevPage: boolean;
     };
-
-    // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(params?.search, [
-      'content',
-    ]);
-    if (searchConditions) {
-      whereConditions.OR = searchConditions.OR;
-    }
-
-    return this.findMany('comment', {
-      where: whereConditions,
-      include: {
-        author: true,
-        post: true,
-      },
+  }> {
+    return this.findManyPaginatedWithFilters('comment', {
+      page: params?.page || 1,
+      limit: params?.limit || 10,
+      where: { deletedAt: { not: null } },
       includeDeleted: true,
+      search: params?.search,
+      columnFilters: params?.columnFilters,
     });
   }
 

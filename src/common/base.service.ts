@@ -139,38 +139,9 @@ export abstract class BaseService<
     });
   }
 
-  // Generic find method with common patterns
-  protected async findMany(
-    model: string,
-    params?: {
-      skip?: number;
-      take?: number;
-      where?: Record<string, unknown>;
-      orderBy?: Record<string, unknown> | Array<Record<string, unknown>>;
-      include?: Record<string, unknown>;
-      includeDeleted?: boolean;
-    },
-  ): Promise<T[]> {
-    const { skip, take, where, orderBy, include, includeDeleted } =
-      params || {};
 
-    const whereConditions = {
-      ...where,
-      ...(includeDeleted ? {} : { deletedAt: null }),
-    };
-
-    const delegate = this.getDelegate<T>(model);
-    return await delegate.findMany({
-      skip,
-      take,
-      where: whereConditions,
-      orderBy: orderBy || this.options.defaultOrderBy,
-      include: include || this.options.defaultInclude,
-    });
-  }
-
-  // Generic paginated find method with common patterns
-  protected async findManyPaginated(
+  // Enhanced paginated find method with search and column filters support
+  async findManyPaginatedWithFilters(
     model: string,
     params?: {
       page?: number;
@@ -179,6 +150,8 @@ export abstract class BaseService<
       orderBy?: Record<string, unknown> | Array<Record<string, unknown>>;
       include?: Record<string, unknown>;
       includeDeleted?: boolean;
+      search?: string;
+      columnFilters?: Record<string, string>;
     },
   ): Promise<{
     items: T[];
@@ -191,42 +164,70 @@ export abstract class BaseService<
       hasPrevPage: boolean;
     };
   }> {
-    const { page = 1, limit = 10, where, orderBy, include, includeDeleted } =
-      params || {};
+    console.log('BaseService: findManyPaginatedWithFilters called with:', { model, params });
+    
+    const { 
+      page = 1, 
+      limit = 10, 
+      where, 
+      orderBy, 
+      include, 
+      includeDeleted = false, 
+      search, 
+      columnFilters 
+    } = params || {};
 
     const p = Math.max(1, Number.isFinite(page) ? page : 1);
     const l = Math.max(1, Math.min(100, Number.isFinite(limit) ? limit : 10));
     const skip = (p - 1) * l;
 
-    const whereConditions = {
+    // Build where conditions
+    const whereConditions: Record<string, unknown> = {
       ...where,
       ...(includeDeleted ? {} : { deletedAt: null }),
     };
 
-    const delegate = this.getDelegate<T>(model);
-    const [items, total] = await Promise.all([
-      delegate.findMany({
-        skip,
-        take: l,
-        where: whereConditions,
-        orderBy: orderBy || this.options.defaultOrderBy,
-        include: include || this.options.defaultInclude,
-      }),
-      delegate.count({ where: whereConditions }),
-    ]);
+    // Apply column filter conditions
+    if (columnFilters) {
+      const columnFilterConditions = this.buildColumnFilterConditions(columnFilters);
+      Object.assign(whereConditions, columnFilterConditions);
+    }
 
-    const totalPages = Math.max(1, Math.ceil(total / l));
-    return {
-      items,
-      pagination: {
-        page: p,
-        limit: l,
-        total,
-        totalPages,
-        hasNextPage: p < totalPages,
-        hasPrevPage: p > 1,
-      },
-    };
+    // Add search conditions if search parameter is provided
+    const searchConditions = this.buildSearchConditions(search, this.options.searchFields || []);
+    if (searchConditions) {
+      whereConditions.OR = searchConditions.OR;
+    }
+
+    try {
+      const delegate = this.getDelegate<T>(model);
+      const [items, total] = await Promise.all([
+        delegate.findMany({
+          skip,
+          take: l,
+          where: whereConditions,
+          orderBy: orderBy || this.options.defaultOrderBy,
+          include: include || this.options.defaultInclude,
+        }),
+        delegate.count({ where: whereConditions }),
+      ]);
+
+      const totalPages = Math.max(1, Math.ceil(total / l));
+      return {
+        items,
+        pagination: {
+          page: p,
+          limit: l,
+          total,
+          totalPages,
+          hasNextPage: p < totalPages,
+          hasPrevPage: p > 1,
+        },
+      };
+    } catch (error) {
+      console.error('BaseService: Error in findManyPaginatedWithFilters:', error);
+      throw error;
+    }
   }
 
   // Generic create method
@@ -305,12 +306,16 @@ export abstract class BaseService<
       return {};
     }
 
+    console.log('BaseService: buildColumnFilterConditions called with:', columnFilters);
     const conditions: Record<string, unknown> = {};
     const config = this.options.columnFilterConfig || {};
+    console.log('BaseService: columnFilterConfig:', config);
 
     Object.entries(columnFilters).forEach(([column, value]) => {
+      console.log(`BaseService: Processing column filter - ${column}: ${value}`);
       if (value && value.trim() !== '') {
         const columnConfig = config[column];
+        console.log(`BaseService: Column config for ${column}:`, columnConfig);
         
         if (columnConfig) {
           // Use configured filter type
@@ -372,9 +377,11 @@ export abstract class BaseService<
             };
           }
         }
+        console.log(`BaseService: Added condition for ${column}:`, conditions[column]);
       }
     });
 
+    console.log('BaseService: Final column filter conditions:', conditions);
     return conditions;
   }
 
@@ -390,7 +397,22 @@ export abstract class BaseService<
 
 
   // Generic findDeleted method
-  async findDeleted(params?: { search?: string }): Promise<T[]> {
+  async findDeleted(params?: { 
+    search?: string; 
+    columnFilters?: Record<string, string>;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    items: T[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPrevPage: boolean;
+    };
+  }> {
     const searchConditions = this.buildSearchConditions(
       params?.search,
       this.options.searchFields || [],
@@ -401,9 +423,13 @@ export abstract class BaseService<
       ...(searchConditions ? { OR: searchConditions.OR } : {}),
     };
 
-    return this.findMany(this.options.modelName, {
+    return this.findManyPaginatedWithFilters(this.options.modelName, {
       where: whereConditions,
       includeDeleted: true,
+      page: params?.page || 1,
+      limit: params?.limit || 10,
+      search: params?.search,
+      columnFilters: params?.columnFilters || {},
     });
   }
 

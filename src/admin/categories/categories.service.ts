@@ -45,43 +45,18 @@ export class CategoriesService extends BaseService<Category, CreateCategoryDto, 
     search?: string;
     columnFilters?: Record<string, string>;
   }): Promise<Category[]> {
-    const { skip, take, where, orderBy, includeDeleted, search, columnFilters } = params || {};
-
-    // Build where conditions
-    const whereConditions: Prisma.CategoryWhereInput = {
-      ...where,
-    };
-
-    // Apply column filter conditions
-    if (columnFilters) {
-      const columnFilterConditions = this.buildColumnFilterConditions(columnFilters);
-      Object.assign(whereConditions, columnFilterConditions);
-    }
-
-    // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(search, [
-      'name',
-      'description',
-      'slug',
-    ]);
-    if (searchConditions) {
-      whereConditions.OR = searchConditions.OR;
-    }
-
-    return this.findMany('category', {
-      skip,
-      take,
-      where: whereConditions,
-      orderBy,
-      include: {
-        posts: {
-          include: {
-            post: true,
-          },
-        },
-      },
-      includeDeleted,
+    // Use the new paginated method for consistency
+    const result = await this.findManyPaginatedWithFilters('category', {
+      page: params?.skip ? Math.floor(params.skip / (params.take || 10)) + 1 : 1,
+      limit: params?.take || 10,
+      where: params?.where,
+      orderBy: params?.orderBy,
+      includeDeleted: params?.includeDeleted,
+      search: params?.search,
+      columnFilters: params?.columnFilters,
     });
+    
+    return result.items;
   }
 
   async findOne(
@@ -164,31 +139,29 @@ export class CategoriesService extends BaseService<Category, CreateCategoryDto, 
   // Bulk operations
 
   // Get deleted categories
-  async findDeleted(params?: { search?: string }): Promise<Category[]> {
-    const whereConditions: Prisma.CategoryWhereInput = {
-      deletedAt: { not: null },
+  async findDeleted(params?: { 
+    search?: string; 
+    columnFilters?: Record<string, string>;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    items: Category[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPrevPage: boolean;
     };
-
-    // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(params?.search, [
-      'name',
-      'description',
-      'slug',
-    ]);
-    if (searchConditions) {
-      whereConditions.OR = searchConditions.OR;
-    }
-
-    return this.findMany('category', {
-      where: whereConditions,
-      include: {
-        posts: {
-          include: {
-            post: true,
-          },
-        },
-      },
+  }> {
+    return this.findManyPaginatedWithFilters('category', {
+      page: params?.page || 1,
+      limit: params?.limit || 10,
+      where: { deletedAt: { not: null } },
       includeDeleted: true,
+      search: params?.search,
+      columnFilters: params?.columnFilters,
     });
   }
 }

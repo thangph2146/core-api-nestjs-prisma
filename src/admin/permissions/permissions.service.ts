@@ -58,30 +58,18 @@ export class PermissionsService extends BaseService<Permission, CreatePermission
   }): Promise<Permission[]> {
     const { skip, take, where, orderBy, includeDeleted, search, columnFilters } = params || {};
 
-    // Base where conditions
-    const whereConditions: Prisma.PermissionWhereInput = {
-      ...where,
-    };
-
-    // Apply column filter conditions
-    if (columnFilters) {
-      const columnFilterConditions = this.buildColumnFilterConditions(columnFilters);
-      Object.assign(whereConditions, columnFilterConditions);
-    }
-
-    // Apply search conditions
-    const searchConditions = this.buildSearchConditions(search, ['name', 'displayName', 'description', 'resource', 'action']);
-    if (searchConditions) {
-      whereConditions.OR = searchConditions.OR;
-    }
-
-    return this.findMany('permission', {
-      skip,
-      take,
-      where: whereConditions,
+    // Use the new paginated method for consistency
+    const result = await this.findManyPaginatedWithFilters('permission', {
+      page: skip ? Math.floor(skip / (take || 10)) + 1 : 1,
+      limit: take || 10,
+      where,
       orderBy,
       includeDeleted,
+      search,
+      columnFilters,
     });
+    
+    return result.items;
   }
 
   async findOne(id: string, includeDeleted: boolean = false): Promise<Permission> {
@@ -249,37 +237,29 @@ export class PermissionsService extends BaseService<Permission, CreatePermission
   }
 
   // Get deleted permissions
-  async findDeleted(params?: { search?: string }): Promise<Permission[]> {
-    const whereConditions: Prisma.PermissionWhereInput = { deletedAt: { not: null } };
-
-    // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(params?.search, [
-      'name',
-      'displayName',
-      'description',
-      'resource',
-      'action',
-    ]);
-    if (searchConditions) {
-      whereConditions.OR = searchConditions.OR;
-    }
-
-    return this.findMany('permission', {
-      where: whereConditions,
-      include: {
-        rolePermissions: {
-          include: {
-            role: {
-              select: {
-                id: true,
-                name: true,
-                displayName: true,
-              },
-            },
-          },
-        },
-      },
+  async findDeleted(params?: { 
+    search?: string; 
+    columnFilters?: Record<string, string>;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    items: Permission[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPrevPage: boolean;
+    };
+  }> {
+    return this.findManyPaginatedWithFilters('permission', {
+      page: params?.page || 1,
+      limit: params?.limit || 10,
+      where: { deletedAt: { not: null } },
       includeDeleted: true,
+      search: params?.search,
+      columnFilters: params?.columnFilters,
     });
   }
 }

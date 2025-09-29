@@ -62,30 +62,18 @@ export class RolesService extends BaseService<RoleModel, CreateRoleDto, UpdateRo
   }): Promise<RoleModel[]> {
     const { skip, take, where, orderBy, includeDeleted, search, columnFilters } = params || {};
 
-    // Base where conditions
-    const whereConditions: Prisma.RoleModelWhereInput = {
-      ...where,
-    };
-
-    // Apply column filter conditions
-    if (columnFilters) {
-      const columnFilterConditions = this.buildColumnFilterConditions(columnFilters);
-      Object.assign(whereConditions, columnFilterConditions);
-    }
-
-    // Apply search conditions
-    const searchConditions = this.buildSearchConditions(search, ['name', 'displayName', 'description']);
-    if (searchConditions) {
-      whereConditions.OR = searchConditions.OR;
-    }
-
-    return this.findMany('roleModel', {
-      skip,
-      take,
-      where: whereConditions,
+    // Use the new paginated method for consistency
+    const result = await this.findManyPaginatedWithFilters('roleModel', {
+      page: skip ? Math.floor(skip / (take || 10)) + 1 : 1,
+      limit: take || 10,
+      where,
       orderBy,
       includeDeleted,
+      search,
+      columnFilters,
     });
+    
+    return result.items;
   }
 
   async findOne(id: string, includeDeleted: boolean = false): Promise<RoleModel> {
@@ -263,40 +251,29 @@ export class RolesService extends BaseService<RoleModel, CreateRoleDto, UpdateRo
   }
 
   // Get deleted roles
-  async findDeleted(params?: { search?: string }): Promise<RoleModel[]> {
-    const whereConditions: Prisma.RoleModelWhereInput = { deletedAt: { not: null } };
-
-    // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(params?.search, [
-      'name',
-      'displayName',
-      'description',
-    ]);
-    if (searchConditions) {
-      whereConditions.OR = searchConditions.OR;
-    }
-
-    return this.findMany('roleModel', {
-      where: whereConditions,
-      include: {
-        userRoles: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
-          },
-        },
-        rolePermissions: {
-          include: {
-            permission: true,
-          },
-        },
-      },
+  async findDeleted(params?: { 
+    search?: string; 
+    columnFilters?: Record<string, string>;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    items: RoleModel[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPrevPage: boolean;
+    };
+  }> {
+    return this.findManyPaginatedWithFilters('roleModel', {
+      page: params?.page || 1,
+      limit: params?.limit || 10,
+      where: { deletedAt: { not: null } },
       includeDeleted: true,
+      search: params?.search,
+      columnFilters: params?.columnFilters,
     });
   }
 }
