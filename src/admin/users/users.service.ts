@@ -87,9 +87,16 @@ export class UsersService extends BaseService<User, CreateUserDto, UpdateUserDto
 
   async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
     await this.findOne(id); // Check if user exists
+    
+    // Hash password if it's being updated
+    const updateData = { ...updateUserDto };
+    if (updateData.password) {
+      updateData.password = await bcrypt.hash(updateData.password, 10);
+    }
+    
     return this.prisma.user.update({
       where: { id },
-      data: updateUserDto,
+      data: updateData,
     });
   }
 
