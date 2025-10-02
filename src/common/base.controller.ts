@@ -37,17 +37,35 @@ export abstract class BaseController<
   async findAll(@Query() query: Record<string, unknown>) {
     // Normalize bracket-notation query params: columnFilters[foo]=bar -> columnFilters: { foo: 'bar' }
     const normalized: Record<string, unknown> = { ...query };
-    const columnFilters: Record<string, string> =
-      (normalized.columnFilters as Record<string, string>) || {};
+    const columnFilters: Record<string, string | string[]> =
+      (normalized.columnFilters as Record<string, string | string[]>) || {};
 
     Object.keys(query).forEach((key) => {
-      const match = key.match(/^columnFilters\[(.+)\]$/);
+      const match = key.match(/^columnFilters\[(.+?)\](?:\[\])?$/);
       if (match) {
         const col = match[1];
         const rawVal = query[key];
-        // Keep values as strings; type coercion will be handled in BaseService.buildColumnFilterConditions
         if (rawVal !== undefined && rawVal !== null) {
-          columnFilters[col] = String(rawVal);
+          const existing = columnFilters[col];
+          if (Array.isArray(rawVal)) {
+            const newValues = rawVal.map((val) => (val ?? '').toString());
+            if (Array.isArray(existing)) {
+              columnFilters[col] = [...existing, ...newValues];
+            } else if (typeof existing === 'string') {
+              columnFilters[col] = [existing, ...newValues];
+            } else {
+              columnFilters[col] = newValues;
+            }
+          } else {
+            const stringValue = String(rawVal);
+            if (Array.isArray(existing)) {
+              columnFilters[col] = [...existing, stringValue];
+            } else if (typeof existing === 'string') {
+              columnFilters[col] = [existing, stringValue];
+            } else {
+              columnFilters[col] = stringValue;
+            }
+          }
         }
         // Remove the bracketed key from the root-level query
         delete (normalized as Record<string, unknown>)[key];

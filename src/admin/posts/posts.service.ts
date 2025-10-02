@@ -41,8 +41,18 @@ export class PostsService extends BaseService<Post, CreatePostDto, UpdatePostDto
         updatedAt: { type: 'date' },
         publishedAt: { type: 'date' },
         authorId: { type: 'text' },
-        categoryId: { type: 'text' },
-        tagId: { type: 'text' },
+        categoryId: {
+          type: 'relation',
+          field: 'categories',
+          relationType: 'many',
+          relationField: 'categoryId',
+        },
+        tagId: {
+          type: 'relation',
+          field: 'tags',
+          relationType: 'many',
+          relationField: 'tagId',
+        },
       },
     });
   }
@@ -95,7 +105,7 @@ export class PostsService extends BaseService<Post, CreatePostDto, UpdatePostDto
     includeDeleted?: boolean;
     search?: string;
     published?: boolean | string;
-    columnFilters?: Record<string, string>;
+    columnFilters?: Record<string, string | string[]>;
   }): Promise<Post[]> {
     const {
       skip,
@@ -123,14 +133,31 @@ export class PostsService extends BaseService<Post, CreatePostDto, UpdatePostDto
 
     // Handle many-to-many filters
     if (columnFilters?.categoryId) {
+      const categoryIds = Array.isArray(columnFilters.categoryId)
+        ? columnFilters.categoryId
+        : [columnFilters.categoryId];
+
       whereConditions.categories = {
-        some: { categoryId: columnFilters.categoryId },
-      } as any;
+        some: {
+          categoryId: {
+            in: categoryIds,
+          },
+        },
+      };
     }
+
     if (columnFilters?.tagId) {
+      const tagIds = Array.isArray(columnFilters.tagId)
+        ? columnFilters.tagId
+        : [columnFilters.tagId];
+
       whereConditions.tags = {
-        some: { tagId: columnFilters.tagId },
-      } as any;
+        some: {
+          tagId: {
+            in: tagIds,
+          },
+        },
+      };
     }
 
     // Use the new paginated method for consistency
@@ -169,7 +196,7 @@ export class PostsService extends BaseService<Post, CreatePostDto, UpdatePostDto
       deletedAt: null, // Always exclude deleted posts for blog
       ...(publishedBool !== undefined && typeof publishedBool === 'boolean'
         ? { published: publishedBool }
-        : { published: true }), // Default to published only
+        : {}),
       ...(authorId ? { authorId } : {}),
     };
 
@@ -399,9 +426,9 @@ export class PostsService extends BaseService<Post, CreatePostDto, UpdatePostDto
   // Bulk operations
 
   // Get deleted posts
-  async findDeleted(params?: { 
-    search?: string; 
-    columnFilters?: Record<string, string>;
+  async findDeleted(params?: {
+    search?: string;
+    columnFilters?: Record<string, string | string[]>;
     page?: number;
     limit?: number;
   }): Promise<{

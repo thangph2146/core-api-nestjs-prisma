@@ -2,10 +2,21 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface ColumnFilterConfig {
-  type: 'text' | 'boolean' | 'date' | 'number' | 'select' | 'nested';
+  type:
+    | 'text'
+    | 'boolean'
+    | 'date'
+    | 'number'
+    | 'select'
+    | 'nested'
+    | 'relation';
   field?: string; // For nested fields, specify the actual database field
   nestedFields?: string[]; // For nested object filtering (e.g., ['name', 'email'] for author)
   options?: Array<{ label: string; value: string }>; // For select type
+  relationType?: 'many' | 'one'; // For relation filters, specify cardinality
+  relationField?: string; // For relation filters, specify the inner field to match (defaults to id)
+  relationOperator?: 'equals' | 'contains'; // Optional operator for relation filters
+  allowMultiple?: boolean; // Allow multiple values for the filter
 }
 
 export interface BaseServiceOptions {
@@ -38,6 +49,63 @@ export abstract class BaseService<
     };
   }
 
+  async findAll(params?: {
+    skip?: number;
+    take?: number;
+    cursor?: Record<string, unknown>;
+    where?: Record<string, unknown>;
+    orderBy?:
+      | Record<string, unknown>
+      | Array<Record<string, unknown>>;
+    include?: Record<string, unknown>;
+    includeDeleted?: boolean;
+    search?: string;
+    columnFilters?: Record<string, string | string[]>;
+  }): Promise<T[]> {
+    const {
+      skip,
+      take,
+      where,
+      orderBy,
+      include,
+      includeDeleted,
+      search,
+      columnFilters,
+    } = params || {};
+
+    const delegate = this.getDelegate<T>(this.options.modelName);
+
+    const whereConditions: Record<string, unknown> = {
+      ...(where || {}),
+      ...(includeDeleted ? {} : { deletedAt: null }),
+    };
+
+    if (columnFilters) {
+      Object.assign(
+        whereConditions,
+        this.buildColumnFilterConditions(columnFilters),
+      );
+    }
+
+    const searchConditions = this.buildSearchConditions(
+      search,
+      this.options.searchFields || [],
+    );
+
+    if (searchConditions) {
+      whereConditions.OR = searchConditions.OR;
+    }
+
+    return delegate.findMany({
+      skip,
+      take,
+      cursor: params?.cursor,
+      where: whereConditions,
+      orderBy: orderBy || this.options.defaultOrderBy,
+      include: include || this.options.defaultInclude,
+    });
+  }
+
   /**
    * Internal minimal CRUD delegate used to strongly type dynamic Prisma model access
    */
@@ -58,6 +126,7 @@ export abstract class BaseService<
     findMany: (args: {
       skip?: number;
       take?: number;
+      cursor?: Record<string, unknown>;
       where?: Record<string, unknown>;
       orderBy?: Record<string, unknown> | Array<Record<string, unknown>>;
       include?: Record<string, unknown>;
@@ -76,6 +145,53 @@ export abstract class BaseService<
     return (this.prisma as unknown as Record<string, unknown>)[
       model
     ] as ReturnType<typeof this.getDelegate<M>>;
+  }
+
+  async create(
+    createDto: Create,
+    include?: Record<string, unknown>,
+  ): Promise<T> {
+    const delegate = this.getDelegate<T>(this.options.modelName);
+    return delegate.create({
+      data: createDto,
+      include: include || this.options.defaultInclude,
+    });
+  }
+
+  async update(
+    id: string,
+    updateDto: Update,
+    include?: Record<string, unknown>,
+  ): Promise<T> {
+    const delegate = this.getDelegate<T>(this.options.modelName);
+    return delegate.update({
+      where: { id },
+      data: updateDto,
+      include: include || this.options.defaultInclude,
+    });
+  }
+
+  async findUnique(
+    model: string,
+    where: Record<string, unknown>,
+    include?: Record<string, unknown>,
+    includeDeleted: boolean = false,
+  ): Promise<T> {
+    const delegate = this.getDelegate<T>(model);
+    const record = await delegate.findUnique({
+      where,
+      include: include || this.options.defaultInclude,
+    });
+
+    if (!record) {
+      throw new NotFoundException(`${model} not found`);
+    }
+
+    if (!includeDeleted && (record as Record<string, unknown>)?.['deletedAt']) {
+      throw new NotFoundException(`${model} not found`);
+    }
+
+    return record;
   }
 
   // Soft delete - chỉ đánh dấu deletedAt
@@ -151,7 +267,7 @@ export abstract class BaseService<
       include?: Record<string, unknown>;
       includeDeleted?: boolean;
       search?: string;
-      columnFilters?: Record<string, string>;
+      columnFilters?: Record<string, string | string[]>;
     },
   ): Promise<{
     items: T[];
@@ -164,37 +280,42 @@ export abstract class BaseService<
       hasPrevPage: boolean;
     };
   }> {
-    console.log('BaseService: findManyPaginatedWithFilters called with:', { model, params });
-    
-    const { 
-      page = 1, 
-      limit = 10, 
-      where, 
-      orderBy, 
-      include, 
-      includeDeleted = false, 
-      search, 
-      columnFilters 
+    console.log('BaseService: findManyPaginatedWithFilters called with:', {
+      model,
+      params,
+    });
+
+    const {
+      page = 1,
+      limit = 10,
+      where,
+      orderBy,
+      include,
+      includeDeleted = false,
+      search,
+      columnFilters,
     } = params || {};
 
-    const p = Math.max(1, Number.isFinite(page) ? page : 1);
-    const l = Math.max(1, Math.min(100, Number.isFinite(limit) ? limit : 10));
+    const parsedPage = Number(page);
+    const parsedLimit = Number(limit);
+    const p = Math.max(1, Number.isFinite(parsedPage) ? parsedPage : 1);
+    const l = Math.max(1, Math.min(100, Number.isFinite(parsedLimit) ? parsedLimit : 10));
     const skip = (p - 1) * l;
 
-    // Build where conditions
     const whereConditions: Record<string, unknown> = {
       ...where,
       ...(includeDeleted ? {} : { deletedAt: null }),
     };
 
-    // Apply column filter conditions
     if (columnFilters) {
       const columnFilterConditions = this.buildColumnFilterConditions(columnFilters);
       Object.assign(whereConditions, columnFilterConditions);
     }
 
-    // Add search conditions if search parameter is provided
-    const searchConditions = this.buildSearchConditions(search, this.options.searchFields || []);
+    const searchConditions = this.buildSearchConditions(
+      search,
+      this.options.searchFields || [],
+    );
     if (searchConditions) {
       whereConditions.OR = searchConditions.OR;
     }
@@ -230,51 +351,205 @@ export abstract class BaseService<
     }
   }
 
-  // Generic create method
-  async create(data: Create): Promise<T> {
-    const delegate = this.getDelegate<T>(this.options.modelName);
-    return await delegate.create({
-      data,
-      include: this.options.defaultInclude,
-    });
-  }
-
-  // Generic update method
-  async update(id: string, data: Update): Promise<T> {
-    await this.findOne(id);
-    const delegate = this.getDelegate<T>(this.options.modelName);
-    return await delegate.update({
-      where: { id },
-      data,
-      include: this.options.defaultInclude,
-    });
-  }
-
-  // Generic find one method
-  protected async findUnique(
-    model: string,
-    where: Record<string, unknown>,
-    include?: Record<string, unknown>,
-    includeDeleted: boolean = false,
-  ): Promise<T> {
-    const delegate = this.getDelegate<T>(model);
-    const result = await delegate.findUnique({
-      where,
-      include,
-    });
-
-    if (!result) {
-      throw new NotFoundException(`${model} not found`);
+  protected buildColumnFilterConditions(
+    columnFilters: Record<string, string | string[]> | undefined,
+  ): Record<string, unknown> {
+    if (!columnFilters || Object.keys(columnFilters).length === 0) {
+      return {};
     }
 
-    if (
-      !includeDeleted &&
-      (result as unknown as { deletedAt?: Date | null }).deletedAt
-    ) {
-      throw new NotFoundException(`${model} not found`);
+    console.log('BaseService: buildColumnFilterConditions called with:', columnFilters);
+    const conditions: Record<string, unknown> = {};
+    const config = this.options.columnFilterConfig || {};
+    console.log('BaseService: columnFilterConfig:', config);
+
+    Object.entries(columnFilters).forEach(([column, rawValue]) => {
+      const values = this.normalizeFilterValues(rawValue);
+      console.log(`BaseService: Processing column filter - ${column}:`, values);
+      if (values.length === 0) {
+        return;
+      }
+
+      const firstValue = values[0];
+      const columnConfig = config[column];
+      console.log(`BaseService: Column config for ${column}:`, columnConfig);
+
+      if (columnConfig) {
+        const allowMultiple =
+          columnConfig.allowMultiple ?? columnConfig.type === 'relation';
+        const effectiveValues = allowMultiple ? values : [firstValue];
+
+        switch (columnConfig.type) {
+          case 'boolean': {
+            const field = columnConfig.field || column;
+            const boolValues = effectiveValues.map((val) => val === 'true');
+            conditions[field] =
+              boolValues.length > 1 ? { in: boolValues } : boolValues[0];
+            break;
+          }
+
+          case 'number': {
+            const numberField = columnConfig.field || column;
+            const numberValues = effectiveValues.map((val) => Number(val));
+            conditions[numberField] =
+              numberValues.length > 1 ? { in: numberValues } : numberValues[0];
+            break;
+          }
+
+          case 'select': {
+            const selectField = columnConfig.field || column;
+            conditions[selectField] =
+              effectiveValues.length > 1 ? { in: effectiveValues } : firstValue;
+            break;
+          }
+
+          case 'nested': {
+            const nestedField = columnConfig.field || column;
+            if (columnConfig.nestedFields && columnConfig.nestedFields.length > 0) {
+              conditions[nestedField] = {
+                OR: effectiveValues.flatMap((val) =>
+                  columnConfig.nestedFields!.map((fieldKey) => ({
+                    [fieldKey]: { contains: val, mode: 'insensitive' },
+                  })),
+                ),
+              };
+            }
+            break;
+          }
+
+          case 'relation': {
+            const relationField = columnConfig.field || column;
+            const relationValueField = columnConfig.relationField || 'id';
+            const relationType = columnConfig.relationType || 'one';
+            const relationOperator = columnConfig.relationOperator || 'equals';
+
+            if (relationType === 'many') {
+              conditions[relationField] = {
+                some: this.buildRelationInnerFilter(
+                  relationValueField,
+                  effectiveValues,
+                  relationOperator,
+                ),
+              };
+            } else {
+              conditions[relationField] = this.buildRelationInnerFilter(
+                relationValueField,
+                effectiveValues,
+                relationOperator,
+              );
+            }
+            break;
+          }
+
+          case 'date': {
+            const dateField = columnConfig.field || column;
+            const start = new Date(firstValue);
+            const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+            if (effectiveValues.length > 1) {
+              conditions[dateField] = {
+                OR: effectiveValues.map((val) => {
+                  const from = new Date(val);
+                  const to = new Date(from.getTime() + 24 * 60 * 60 * 1000 - 1);
+                  return { gte: from, lte: to };
+                }),
+              };
+            } else {
+              conditions[dateField] = { gte: start, lte: end };
+            }
+            break;
+          }
+
+          case 'text':
+          default: {
+            const textField = columnConfig.field || column;
+            conditions[textField] = {
+              contains: firstValue,
+              mode: 'insensitive',
+            };
+            break;
+          }
+        }
+      } else {
+        const lowerColumn = column.toLowerCase();
+        if (lowerColumn.includes('date') || lowerColumn.endsWith('at')) {
+          const start = new Date(firstValue);
+          const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+          if (values.length > 1) {
+            conditions[column] = {
+              OR: values.map((val) => {
+                const from = new Date(val);
+                const to = new Date(from.getTime() + 24 * 60 * 60 * 1000 - 1);
+                return { gte: from, lte: to };
+              }),
+            };
+          } else {
+            conditions[column] = { gte: start, lte: end };
+          }
+        } else if (lowerColumn.endsWith('id') || column === 'id') {
+          conditions[column] = values.length > 1 ? { in: values } : firstValue;
+        } else {
+          conditions[column] = {
+            contains: firstValue,
+            mode: 'insensitive',
+          };
+        }
+      }
+
+      console.log(`BaseService: Added condition for ${column}:`, conditions[column]);
+    });
+
+    console.log('BaseService: Final column filter conditions:', conditions);
+    return conditions;
+  }
+
+  private normalizeFilterValues(value: string | string[] | undefined): string[] {
+    if (!value) {
+      return [];
     }
 
-    return result;
+    const rawValues = Array.isArray(value) ? value : [value];
+    return rawValues
+      .map((val) => (val ?? '').toString().trim())
+      .filter((val) => val !== '');
+  }
+
+  private buildRelationInnerFilter(
+    field: string,
+    values: string[],
+    operator: 'equals' | 'contains',
+  ): Record<string, unknown> {
+    if (!values || values.length === 0) {
+      return {};
+    }
+
+    const sanitized = values.filter((val) => val !== '');
+    if (sanitized.length === 0) {
+      return {};
+    }
+
+    if (operator === 'contains') {
+      if (sanitized.length === 1) {
+        return {
+          [field]: { contains: sanitized[0], mode: 'insensitive' },
+        };
+      }
+
+      return {
+        OR: sanitized.map((val) => ({
+          [field]: { contains: val, mode: 'insensitive' },
+        })),
+      };
+    }
+
+    if (sanitized.length === 1) {
+      return {
+        [field]: sanitized[0],
+      };
+    }
+
+    return {
+      [field]: { in: sanitized },
+    };
   }
 
   // Build search conditions for common fields
@@ -297,94 +572,6 @@ export abstract class BaseService<
       })),
     };
   }
-
-  // Build column filter conditions
-  protected buildColumnFilterConditions(
-    columnFilters: Record<string, string> | undefined,
-  ): Record<string, unknown> {
-    if (!columnFilters || Object.keys(columnFilters).length === 0) {
-      return {};
-    }
-
-    console.log('BaseService: buildColumnFilterConditions called with:', columnFilters);
-    const conditions: Record<string, unknown> = {};
-    const config = this.options.columnFilterConfig || {};
-    console.log('BaseService: columnFilterConfig:', config);
-
-    Object.entries(columnFilters).forEach(([column, value]) => {
-      console.log(`BaseService: Processing column filter - ${column}: ${value}`);
-      if (value && value.trim() !== '') {
-        const columnConfig = config[column];
-        console.log(`BaseService: Column config for ${column}:`, columnConfig);
-        
-        if (columnConfig) {
-          // Use configured filter type
-          switch (columnConfig.type) {
-            case 'boolean':
-              const field = columnConfig.field || column;
-              conditions[field] = value === 'true';
-              break;
-              
-            case 'date':
-              const dateField = columnConfig.field || column;
-              conditions[dateField] = {
-                gte: new Date(value),
-                lte: new Date(new Date(value).getTime() + 24 * 60 * 60 * 1000 - 1), // End of day
-              };
-              break;
-              
-            case 'number':
-              const numberField = columnConfig.field || column;
-              conditions[numberField] = Number(value);
-              break;
-              
-            case 'select':
-              const selectField = columnConfig.field || column;
-              conditions[selectField] = value;
-              break;
-              
-            case 'nested':
-              const nestedField = columnConfig.field || column;
-              if (columnConfig.nestedFields && columnConfig.nestedFields.length > 0) {
-              conditions[nestedField] = {
-                OR: columnConfig.nestedFields.map(field => ({
-                  [field]: { contains: value, mode: 'insensitive' }
-                }))
-              };
-              }
-              break;
-
-            case 'text':
-            default:
-              const textField = columnConfig.field || column;
-              conditions[textField] = {
-                contains: value, mode: 'insensitive',
-              };
-              break;
-          }
-        } else {
-          // Fallback to auto-detection based on column name patterns
-          if (column.includes('Date') || column.includes('At')) {
-            conditions[column] = {
-              gte: new Date(value),
-              lte: new Date(new Date(value).getTime() + 24 * 60 * 60 * 1000 - 1),
-            };
-          } else if (column.includes('Id') || column === 'id') {
-            conditions[column] = value;
-          } else {
-            conditions[column] = {
-              contains: value, mode: 'insensitive',
-            };
-          }
-        }
-        console.log(`BaseService: Added condition for ${column}:`, conditions[column]);
-      }
-    });
-
-    console.log('BaseService: Final column filter conditions:', conditions);
-    return conditions;
-  }
-
   // Generic findOne method using model name from options
   async findOne(id: string, includeDeleted: boolean = false): Promise<T> {
     return this.findUnique(
@@ -399,7 +586,7 @@ export abstract class BaseService<
   // Generic findDeleted method
   async findDeleted(params?: { 
     search?: string; 
-    columnFilters?: Record<string, string>;
+    columnFilters?: Record<string, string | string[]>;
     page?: number;
     limit?: number;
   }): Promise<{

@@ -29,7 +29,7 @@ export class BaseQueryDto {
 
   @IsOptional()
   @IsObject()
-  columnFilters?: Record<string, string>;
+  columnFilters?: Record<string, string | string[]>;
 }
 
 export class PaginationDto {
