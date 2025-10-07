@@ -451,7 +451,7 @@ const permissionResourceSpecs: PermissionResourceSpec[] = [
     description: 'trang tổng quan quản trị',
     basePath: '/admin',
     actions: [
-      { action: 'view', roles: ROLE_SETS.all },
+      { action: 'view', roles: ROLE_SETS.all, path: '/admin' },
       { action: 'analytics', roles: ROLE_SETS.adminAndSuper },
     ],
   },
