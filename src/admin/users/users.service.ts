@@ -2,9 +2,11 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { User, Prisma } from '@prisma/client';
+import { User, Prisma, Role } from '@prisma/client';
 import { BaseService } from '../../common/base.service';
 import * as bcrypt from 'bcryptjs';
+
+const LEGACY_ROLE_VALUES = new Set<string>(Object.values(Role));
 
 @Injectable()
 export class UsersService extends BaseService<
@@ -28,6 +30,120 @@ export class UsersService extends BaseService<
         createdAt: { type: 'date' },
         updatedAt: { type: 'date' },
       },
+    });
+  }
+
+  private normalizeRoleFilterValues(
+    value: string | string[] | undefined,
+  ): string[] {
+    if (!value) {
+      return [];
+    }
+
+    const rawValues = Array.isArray(value) ? value : [value];
+    return rawValues
+      .map((val) => (val ?? '').toString().trim())
+      .filter((val) => val.length > 0);
+  }
+
+  private partitionRoleFilters(values: string[]): {
+    legacyRoles: Role[];
+    dynamicRoles: string[];
+  } {
+    const legacyRoles: Role[] = [];
+    const dynamicRoles: string[] = [];
+
+    values.forEach((value) => {
+      if (LEGACY_ROLE_VALUES.has(value)) {
+        legacyRoles.push(value as Role);
+        return;
+      }
+
+      const upperCased = value.toUpperCase();
+      if (LEGACY_ROLE_VALUES.has(upperCased)) {
+        legacyRoles.push(upperCased as Role);
+        return;
+      }
+
+      dynamicRoles.push(value);
+    });
+
+    return { legacyRoles, dynamicRoles };
+  }
+
+  private mergeRoleConditions(
+    baseWhere: Prisma.UserWhereInput,
+    roleConditions: Prisma.UserWhereInput[],
+  ): Prisma.UserWhereInput {
+    const { AND, ...rest } = baseWhere;
+    const existingAnd = Array.isArray(AND) ? AND : AND ? [AND] : [];
+
+    return {
+      ...rest,
+      AND: [...existingAnd, { OR: roleConditions }],
+    };
+  }
+
+  async findManyPaginatedWithFilters(
+    model: string,
+    params?: {
+      page?: number;
+      limit?: number;
+      where?: Prisma.UserWhereInput;
+      orderBy?:
+        | Prisma.UserOrderByWithRelationInput
+        | Prisma.UserOrderByWithRelationInput[];
+      include?: Prisma.UserInclude;
+      includeDeleted?: boolean;
+      search?: string;
+      columnFilters?: Record<string, string | string[]>;
+    },
+  ) {
+    const { columnFilters, where, ...rest } = params || {};
+
+    const adjustedColumnFilters = { ...(columnFilters || {}) };
+    const roleFilter = adjustedColumnFilters.role;
+    let adjustedWhere: Prisma.UserWhereInput = { ...(where || {}) };
+
+    if (roleFilter !== undefined) {
+      const normalizedValues = this.normalizeRoleFilterValues(roleFilter);
+      const { legacyRoles, dynamicRoles } =
+        this.partitionRoleFilters(normalizedValues);
+
+      delete adjustedColumnFilters.role;
+
+      const roleConditions: Prisma.UserWhereInput[] = [];
+
+      if (legacyRoles.length > 0) {
+        roleConditions.push({ role: { in: legacyRoles } });
+      }
+
+      if (dynamicRoles.length > 0) {
+        roleConditions.push({
+          userRoles: {
+            some: {
+              role: {
+                name: { in: dynamicRoles },
+              },
+            },
+          },
+        });
+      }
+
+      if (roleConditions.length > 0) {
+        adjustedWhere = this.mergeRoleConditions(adjustedWhere, roleConditions);
+      }
+    }
+
+    const finalColumnFilters =
+      Object.keys(adjustedColumnFilters).length > 0
+        ? adjustedColumnFilters
+        : undefined;
+
+    return super.findManyPaginatedWithFilters(model, {
+      ...rest,
+      where: adjustedWhere,
+      columnFilters: finalColumnFilters,
     });
   }
 
