@@ -1,10 +1,17 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto, RegisterDto, RefreshTokenDto } from './dto/auth.dto';
 import { SessionService } from './session.service';
 import { Request } from 'express';
 import * as bcrypt from 'bcrypt';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
@@ -12,6 +19,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly sessionService: SessionService,
+    private readonly configService: ConfigService,
   ) {}
 
   async login(loginDto: LoginDto, req?: Request) {
@@ -65,9 +73,11 @@ export class AuthService {
       const tokens = await this.generateTokens(user);
 
       // Tạo session
-      const sessionInfo = req ? this.sessionService.extractSessionInfoFromRequest(req) : {};
+      const sessionInfo = req
+        ? this.sessionService.extractSessionInfoFromRequest(req)
+        : {};
       const expiresAt = new Date(Date.now() + tokens.expiresIn * 1000);
-      
+
       const session = await this.sessionService.createSession({
         userId: user.id,
         accessToken: tokens.accessToken,
@@ -93,7 +103,7 @@ export class AuthService {
           },
           tokens,
           permissions,
-          userRoles: user.userRoles.map(ur => ({
+          userRoles: user.userRoles.map((ur) => ({
             id: ur.id,
             role: {
               id: ur.role.id,
@@ -112,7 +122,10 @@ export class AuthService {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
+      if (
+        error instanceof UnauthorizedException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       throw new InternalServerErrorException('Lỗi hệ thống khi đăng nhập');
@@ -184,7 +197,7 @@ export class AuthService {
           },
           tokens,
           permissions,
-          userRoles: user.userRoles.map(ur => ({
+          userRoles: user.userRoles.map((ur) => ({
             id: ur.id,
             role: {
               id: ur.role.id,
@@ -197,7 +210,10 @@ export class AuthService {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      if (error instanceof ConflictException || error instanceof BadRequestException) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       throw new InternalServerErrorException('Lỗi hệ thống khi đăng ký');
@@ -213,8 +229,13 @@ export class AuthService {
       }
 
       // Verify refresh token
+      const refreshSecret = this.configService.get<string>(
+        'JWT_REFRESH_SECRET',
+        this.configService.get<string>('JWT_SECRET', 'dev-secret'),
+      );
+
       const payload = this.jwtService.verify(refreshToken, {
-        secret: process.env.JWT_REFRESH_SECRET,
+        secret: refreshSecret,
       });
 
       // Tìm user
@@ -252,7 +273,10 @@ export class AuthService {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
+      if (
+        error instanceof UnauthorizedException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       throw new UnauthorizedException('Token không hợp lệ');
@@ -308,28 +332,24 @@ export class AuthService {
     const permissions = this.extractUserPermissions(user);
 
     return {
-      success: true,
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
-        },
-        permissions,
-        userRoles: user.userRoles.map(ur => ({
-          id: ur.id,
-          role: {
-            id: ur.role.id,
-            name: ur.role.name,
-            displayName: ur.role.displayName,
-            description: ur.role.description,
-          },
-        })),
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
       },
-      timestamp: new Date().toISOString(),
+      permissions,
+      userRoles: user.userRoles.map((ur) => ({
+        id: ur.id,
+        role: {
+          id: ur.role.id,
+          name: ur.role.name,
+          displayName: ur.role.displayName,
+          description: ur.role.description,
+        },
+      })),
     };
   }
 
@@ -340,24 +360,77 @@ export class AuthService {
       role: user.role,
     };
 
+    const accessTokenSecret = this.configService.get<string>(
+      'JWT_SECRET',
+      'dev-secret',
+    );
+    const refreshTokenSecret = this.configService.get<string>(
+      'JWT_REFRESH_SECRET',
+      accessTokenSecret,
+    );
+    const accessTokenExpiresIn = this.configService.get<string>(
+      'JWT_ACCESS_TOKEN_EXPIRES_IN',
+      '15m',
+    );
+    const refreshTokenExpiresIn = this.configService.get<string>(
+      'JWT_REFRESH_TOKEN_EXPIRES_IN',
+      '7d',
+    );
+
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
-        secret: process.env.JWT_SECRET,
-        expiresIn: '15m',
+        secret: accessTokenSecret,
+        expiresIn: accessTokenExpiresIn,
       }),
       this.jwtService.signAsync(payload, {
-        secret: process.env.JWT_REFRESH_SECRET,
-        expiresIn: '7d',
+        secret: refreshTokenSecret,
+        expiresIn: refreshTokenExpiresIn,
       }),
     ]);
+
+    const resolveExpiresInSeconds = (value: string | number): number => {
+      if (typeof value === 'number') {
+        return value;
+      }
+
+      const trimmed = value.trim();
+      const directNumber = Number(trimmed);
+
+      if (!Number.isNaN(directNumber) && directNumber > 0) {
+        return directNumber;
+      }
+
+      const match = trimmed.match(/^(\d+)([smhd])$/i);
+
+      if (!match) {
+        return 15 * 60;
+      }
+
+      const amount = Number(match[1]);
+      const unit = match[2]?.toLowerCase();
+
+      const unitMap: Record<string, number> = {
+        s: 1,
+        m: 60,
+        h: 60 * 60,
+        d: 60 * 60 * 24,
+      };
+
+      const multiplier = unit ? unitMap[unit] : undefined;
+
+      if (!multiplier) {
+        return 15 * 60;
+      }
+
+      return amount * multiplier;
+    };
 
     return {
       accessToken,
       refreshToken,
-      expiresIn: 15 * 60, // 15 minutes in seconds
+      expiresIn: resolveExpiresInSeconds(accessTokenExpiresIn),
     };
   }
-
 
   private extractUserPermissions(user: any) {
     const permissions = new Set();

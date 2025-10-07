@@ -267,8 +267,522 @@ const samplePostContent2 = {
   },
 };
 
+type PermissionActionSpec = {
+  action: string;
+  roles: Role[];
+  path?: string;
+  displayName?: string;
+  description?: string;
+};
+
+type PermissionResourceSpec = {
+  resource: string;
+  label: string;
+  description: string;
+  basePath: string;
+  detailPath?: string;
+  newPath?: string;
+  actions: PermissionActionSpec[];
+};
+
+type PermissionSeedDefinition = {
+  name: string;
+  displayName: string;
+  description: string;
+  resource: string;
+  action: string;
+  pathPattern: string;
+  roles: Role[];
+};
+
+const ROLE_SETS: Record<string, Role[]> = {
+  all: [Role.USER, Role.ADMIN, Role.EDITOR, Role.SUPER_ADMIN],
+  adminAndSuper: [Role.ADMIN, Role.SUPER_ADMIN],
+  editorial: [Role.ADMIN, Role.EDITOR, Role.SUPER_ADMIN],
+  superOnly: [Role.SUPER_ADMIN],
+};
+
+const ACTION_METADATA: Record<string, { label: string; description: string }> = {
+  view: { label: "Xem", description: "Cho phép xem {resource}." },
+  create: { label: "Tạo", description: "Cho phép tạo {resource}." },
+  update: { label: "Cập nhật", description: "Cho phép cập nhật {resource}." },
+  delete: {
+    label: "Xóa",
+    description: "Cho phép xóa {resource} (soft delete).",
+  },
+  restore: {
+    label: "Khôi phục",
+    description: "Cho phép khôi phục {resource}.",
+  },
+  "hard-delete": {
+    label: "Xóa vĩnh viễn",
+    description: "Cho phép xóa vĩnh viễn {resource}.",
+  },
+  "bulk-delete": {
+    label: "Xóa hàng loạt",
+    description: "Cho phép xóa nhiều {resource} cùng lúc.",
+  },
+  "bulk-restore": {
+    label: "Khôi phục hàng loạt",
+    description: "Cho phép khôi phục nhiều {resource} cùng lúc.",
+  },
+  "bulk-hard-delete": {
+    label: "Xóa vĩnh viễn hàng loạt",
+    description: "Cho phép xóa vĩnh viễn nhiều {resource} cùng lúc.",
+  },
+  publish: {
+    label: "Xuất bản",
+    description: "Cho phép xuất bản {resource}.",
+  },
+  analytics: {
+    label: "Xem phân tích",
+    description: "Cho phép xem dữ liệu phân tích của {resource}.",
+  },
+  system: {
+    label: "Quản lý cấu hình",
+    description: "Cho phép cấu hình hệ thống nâng cao.",
+  },
+  security: {
+    label: "Quản lý bảo mật",
+    description: "Cho phép cấu hình các thiết lập bảo mật.",
+  },
+  "change-password": {
+    label: "Đổi mật khẩu",
+    description: "Cho phép đổi mật khẩu tài khoản.",
+  },
+  "upload-avatar": {
+    label: "Cập nhật ảnh đại diện",
+    description: "Cho phép cập nhật ảnh đại diện tài khoản.",
+  },
+  "manage-subscriptions": {
+    label: "Quản lý đăng ký",
+    description: "Cho phép quản lý gói đăng ký và thanh toán.",
+  },
+  "view-invoices": {
+    label: "Xem hóa đơn",
+    description: "Cho phép xem hóa đơn và lịch sử thanh toán.",
+  },
+  manage: {
+    label: "Quản lý",
+    description: "Cho phép quản lý {resource}.",
+  },
+  request: {
+    label: "Gửi yêu cầu",
+    description: "Cho phép gửi yêu cầu liên quan đến {resource}.",
+  },
+  "mark-read": {
+    label: "Đánh dấu đã đọc",
+    description: "Cho phép đánh dấu thông báo là đã đọc.",
+  },
+  revoke: {
+    label: "Thu hồi",
+    description: "Cho phép thu hồi {resource}.",
+  },
+  "revoke-all": {
+    label: "Thu hồi tất cả",
+    description: "Cho phép thu hồi tất cả {resource}.",
+  },
+  moderate: {
+    label: "Kiểm duyệt",
+    description: "Cho phép kiểm duyệt {resource}.",
+  },
+  approve: {
+    label: "Phê duyệt",
+    description: "Cho phép phê duyệt {resource}.",
+  },
+  reject: {
+    label: "Từ chối",
+    description: "Cho phép từ chối {resource}.",
+  },
+  "bulk-approve": {
+    label: "Phê duyệt hàng loạt",
+    description: "Cho phép phê duyệt hàng loạt {resource}.",
+  },
+  "bulk-reject": {
+    label: "Từ chối hàng loạt",
+    description: "Cho phép từ chối hàng loạt {resource}.",
+  },
+  "assign-role": {
+    label: "Gán vai trò",
+    description: "Cho phép gán vai trò cho người dùng.",
+  },
+  "revoke-role": {
+    label: "Thu hồi vai trò",
+    description: "Cho phép thu hồi vai trò của người dùng.",
+  },
+  assign: {
+    label: "Gán",
+    description: "Cho phép gán {resource}.",
+  },
+};
+
+const DETAIL_ACTIONS = new Set([
+  "update",
+  "delete",
+  "restore",
+  "hard-delete",
+  "publish",
+  "approve",
+  "reject",
+  "assign-role",
+  "revoke-role",
+]);
+
+const toTitleCase = (value: string) =>
+  value
+    .split(/[-_ ]+/)
+    .filter(Boolean)
+    .map(
+      (segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase(),
+    )
+    .join(" ");
+
+const toSentenceCase = (value: string) => toTitleCase(value).toLowerCase();
+
+const ensurePeriod = (value: string) => {
+  const trimmed = value.trim();
+  return trimmed.endsWith('.') ? trimmed : `${trimmed}.`;
+};
+
+const permissionResourceSpecs: PermissionResourceSpec[] = [
+  {
+    resource: 'dashboard',
+    label: 'Dashboard',
+    description: 'trang tổng quan quản trị',
+    basePath: '/admin',
+    actions: [
+      { action: 'view', roles: ROLE_SETS.all },
+      { action: 'analytics', roles: ROLE_SETS.adminAndSuper },
+    ],
+  },
+  {
+    resource: 'settings',
+    label: 'Cài đặt hệ thống',
+    description: 'các cài đặt hệ thống',
+    basePath: '/admin/settings',
+    actions: [
+      { action: 'view', roles: ROLE_SETS.adminAndSuper },
+      { action: 'update', roles: ROLE_SETS.superOnly },
+      { action: 'system', roles: ROLE_SETS.superOnly },
+      { action: 'security', roles: ROLE_SETS.superOnly },
+    ],
+  },
+  {
+    resource: 'profile',
+    label: 'Hồ sơ',
+    description: 'hồ sơ tài khoản',
+    basePath: '/admin/profile',
+    actions: [
+      { action: 'view', roles: ROLE_SETS.all },
+      { action: 'update', roles: ROLE_SETS.all },
+      { action: 'change-password', roles: ROLE_SETS.all },
+      { action: 'upload-avatar', roles: ROLE_SETS.all },
+    ],
+  },
+  {
+    resource: 'billing',
+    label: 'Thanh toán',
+    description: 'thiết lập thanh toán',
+    basePath: '/admin/billing',
+    actions: [
+      { action: 'view', roles: ROLE_SETS.adminAndSuper },
+      { action: 'update', roles: ROLE_SETS.superOnly },
+      { action: 'manage-subscriptions', roles: ROLE_SETS.superOnly },
+      { action: 'view-invoices', roles: ROLE_SETS.adminAndSuper },
+    ],
+  },
+  {
+    resource: 'notifications',
+    label: 'Thông báo',
+    description: 'các thông báo hệ thống',
+    basePath: '/admin/notifications',
+    actions: [
+      { action: 'view', roles: ROLE_SETS.all },
+      { action: 'update', roles: ROLE_SETS.all },
+      { action: 'mark-read', roles: ROLE_SETS.all },
+      { action: 'delete', roles: ROLE_SETS.all },
+    ],
+  },
+  {
+    resource: 'sessions',
+    label: 'Phiên đăng nhập',
+    description: 'các phiên đăng nhập',
+    basePath: '/admin/sessions',
+    actions: [
+      { action: 'view', roles: ROLE_SETS.all },
+      { action: 'manage', roles: ROLE_SETS.all },
+      { action: 'revoke', roles: ROLE_SETS.all },
+      { action: 'revoke-all', roles: ROLE_SETS.all },
+    ],
+  },
+  {
+    resource: 'upgrade',
+    label: 'Nâng cấp',
+    description: 'chức năng nâng cấp hệ thống',
+    basePath: '/admin/upgrade',
+    actions: [
+      { action: 'view', roles: ROLE_SETS.all },
+      { action: 'request', roles: ROLE_SETS.all },
+      { action: 'manage', roles: ROLE_SETS.superOnly },
+    ],
+  },
+  {
+    resource: 'posts',
+    label: 'Bài viết',
+    description: 'các bài viết nội dung',
+    basePath: '/admin/posts',
+    detailPath: '/admin/posts/[id]',
+    newPath: '/admin/posts/new',
+    actions: [
+      { action: 'view', roles: ROLE_SETS.editorial },
+      { action: 'create', roles: ROLE_SETS.editorial },
+      { action: 'update', roles: ROLE_SETS.editorial },
+      { action: 'publish', roles: ROLE_SETS.adminAndSuper },
+      { action: 'delete', roles: ROLE_SETS.adminAndSuper },
+      { action: 'restore', roles: ROLE_SETS.adminAndSuper },
+      { action: 'hard-delete', roles: ROLE_SETS.superOnly },
+      { action: 'bulk-delete', roles: ROLE_SETS.adminAndSuper },
+      { action: 'bulk-restore', roles: ROLE_SETS.adminAndSuper },
+      { action: 'bulk-hard-delete', roles: ROLE_SETS.superOnly },
+    ],
+  },
+  {
+    resource: 'users',
+    label: 'Người dùng',
+    description: 'tài khoản người dùng',
+    basePath: '/admin/users',
+    detailPath: '/admin/users/[id]',
+    newPath: '/admin/users/new',
+    actions: [
+      { action: 'view', roles: ROLE_SETS.adminAndSuper },
+      { action: 'create', roles: ROLE_SETS.superOnly },
+      { action: 'update', roles: ROLE_SETS.superOnly },
+      { action: 'delete', roles: ROLE_SETS.adminAndSuper },
+      { action: 'restore', roles: ROLE_SETS.adminAndSuper },
+      { action: 'hard-delete', roles: ROLE_SETS.superOnly },
+      { action: 'bulk-delete', roles: ROLE_SETS.adminAndSuper },
+      { action: 'bulk-restore', roles: ROLE_SETS.adminAndSuper },
+      { action: 'bulk-hard-delete', roles: ROLE_SETS.superOnly },
+      {
+        action: 'assign-role',
+        roles: ROLE_SETS.superOnly,
+        displayName: 'Gán vai trò cho người dùng',
+        description: 'Cho phép gán vai trò cho người dùng.',
+      },
+      {
+        action: 'revoke-role',
+        roles: ROLE_SETS.superOnly,
+        displayName: 'Thu hồi vai trò của người dùng',
+        description: 'Cho phép thu hồi vai trò của người dùng.',
+      },
+    ],
+  },
+  {
+    resource: 'roles',
+    label: 'Vai trò',
+    description: 'các vai trò người dùng',
+    basePath: '/admin/roles',
+    detailPath: '/admin/roles/[id]',
+    newPath: '/admin/roles/new',
+    actions: [
+      { action: 'view', roles: ROLE_SETS.adminAndSuper },
+      { action: 'create', roles: ROLE_SETS.superOnly },
+      { action: 'update', roles: ROLE_SETS.superOnly },
+      { action: 'delete', roles: ROLE_SETS.superOnly },
+      { action: 'restore', roles: ROLE_SETS.superOnly },
+      { action: 'hard-delete', roles: ROLE_SETS.superOnly },
+      { action: 'bulk-delete', roles: ROLE_SETS.superOnly },
+      { action: 'bulk-restore', roles: ROLE_SETS.superOnly },
+      { action: 'bulk-hard-delete', roles: ROLE_SETS.superOnly },
+    ],
+  },
+  {
+    resource: 'permissions',
+    label: 'Quyền hệ thống',
+    description: 'các quyền hệ thống',
+    basePath: '/admin/permissions',
+    detailPath: '/admin/permissions/[id]',
+    newPath: '/admin/permissions/new',
+    actions: [
+      { action: 'view', roles: ROLE_SETS.adminAndSuper },
+      { action: 'create', roles: ROLE_SETS.superOnly },
+      { action: 'update', roles: ROLE_SETS.superOnly },
+      { action: 'delete', roles: ROLE_SETS.superOnly },
+      { action: 'restore', roles: ROLE_SETS.superOnly },
+      { action: 'hard-delete', roles: ROLE_SETS.superOnly },
+      { action: 'bulk-delete', roles: ROLE_SETS.superOnly },
+      { action: 'bulk-restore', roles: ROLE_SETS.superOnly },
+      { action: 'bulk-hard-delete', roles: ROLE_SETS.superOnly },
+      {
+        action: 'assign',
+        roles: ROLE_SETS.superOnly,
+        displayName: 'Gán quyền hệ thống',
+        description: 'Cho phép gán các quyền hệ thống.',
+      },
+      {
+        action: 'revoke',
+        roles: ROLE_SETS.superOnly,
+        displayName: 'Thu hồi quyền hệ thống',
+        description: 'Cho phép thu hồi các quyền hệ thống.',
+      },
+      {
+        action: 'manage',
+        roles: ROLE_SETS.superOnly,
+        displayName: 'Quản lý quyền hệ thống',
+        description: 'Cho phép quản lý toàn bộ quyền hệ thống.',
+      },
+    ],
+  },
+  {
+    resource: 'categories',
+    label: 'Danh mục',
+    description: 'các danh mục nội dung',
+    basePath: '/admin/categories',
+    detailPath: '/admin/categories/[id]',
+    newPath: '/admin/categories/new',
+    actions: [
+      { action: 'view', roles: ROLE_SETS.editorial },
+      { action: 'create', roles: ROLE_SETS.editorial },
+      { action: 'update', roles: ROLE_SETS.editorial },
+      { action: 'moderate', roles: ROLE_SETS.editorial },
+      { action: 'delete', roles: ROLE_SETS.adminAndSuper },
+      { action: 'restore', roles: ROLE_SETS.adminAndSuper },
+      { action: 'hard-delete', roles: ROLE_SETS.superOnly },
+      { action: 'bulk-delete', roles: ROLE_SETS.adminAndSuper },
+      { action: 'bulk-restore', roles: ROLE_SETS.adminAndSuper },
+      { action: 'bulk-hard-delete', roles: ROLE_SETS.superOnly },
+    ],
+  },
+  {
+    resource: 'tags',
+    label: 'Thẻ nội dung',
+    description: 'các thẻ nội dung',
+    basePath: '/admin/tags',
+    detailPath: '/admin/tags/[id]',
+    newPath: '/admin/tags/new',
+    actions: [
+      { action: 'view', roles: ROLE_SETS.editorial },
+      { action: 'create', roles: ROLE_SETS.editorial },
+      { action: 'update', roles: ROLE_SETS.editorial },
+      { action: 'delete', roles: ROLE_SETS.adminAndSuper },
+      { action: 'restore', roles: ROLE_SETS.adminAndSuper },
+      { action: 'hard-delete', roles: ROLE_SETS.superOnly },
+      { action: 'bulk-delete', roles: ROLE_SETS.adminAndSuper },
+      { action: 'bulk-restore', roles: ROLE_SETS.adminAndSuper },
+      { action: 'bulk-hard-delete', roles: ROLE_SETS.superOnly },
+    ],
+  },
+  {
+    resource: 'comments',
+    label: 'Bình luận',
+    description: 'các bình luận người dùng',
+    basePath: '/admin/comments',
+    detailPath: '/admin/comments/[id]',
+    actions: [
+      { action: 'view', roles: ROLE_SETS.editorial },
+      { action: 'create', roles: ROLE_SETS.editorial },
+      { action: 'update', roles: ROLE_SETS.editorial },
+      { action: 'moderate', roles: ROLE_SETS.editorial },
+      { action: 'approve', roles: ROLE_SETS.editorial },
+      { action: 'reject', roles: ROLE_SETS.editorial },
+      { action: 'delete', roles: ROLE_SETS.adminAndSuper },
+      { action: 'restore', roles: ROLE_SETS.adminAndSuper },
+      { action: 'hard-delete', roles: ROLE_SETS.superOnly },
+      { action: 'bulk-delete', roles: ROLE_SETS.adminAndSuper },
+      { action: 'bulk-restore', roles: ROLE_SETS.adminAndSuper },
+      { action: 'bulk-hard-delete', roles: ROLE_SETS.superOnly },
+      { action: 'bulk-approve', roles: ROLE_SETS.editorial },
+      { action: 'bulk-reject', roles: ROLE_SETS.editorial },
+    ],
+  },
+  {
+    resource: 'trash',
+    label: 'Thùng rác',
+    description: 'mục đã xóa trong thùng rác',
+    basePath: '/admin/trash',
+    actions: [
+      { action: 'view', roles: ROLE_SETS.adminAndSuper },
+      { action: 'restore', roles: ROLE_SETS.adminAndSuper },
+      { action: 'delete', roles: ROLE_SETS.superOnly },
+      { action: 'hard-delete', roles: ROLE_SETS.superOnly },
+    ],
+  },
+];
+
+const buildPermissionEntries = (): PermissionSeedDefinition[] => {
+  const entries: PermissionSeedDefinition[] = [];
+
+  for (const resourceSpec of permissionResourceSpecs) {
+    for (const actionSpec of resourceSpec.actions) {
+      const actionMeta =
+        ACTION_METADATA[actionSpec.action] ?? {
+          label: toTitleCase(actionSpec.action),
+          description: `Cho phép ${toSentenceCase(actionSpec.action)} {resource}.`,
+        };
+
+      const baseDisplayLabel = actionMeta.label || toTitleCase(actionSpec.action);
+      const displayName =
+        actionSpec.displayName ?? `${baseDisplayLabel} ${resourceSpec.label}`;
+
+      const descriptionTemplate =
+        actionSpec.description ?? actionMeta.description;
+
+      const description = ensurePeriod(
+        descriptionTemplate.includes('{resource}')
+          ? descriptionTemplate.replace('{resource}', resourceSpec.description)
+          : descriptionTemplate,
+      );
+
+      const uniqueRoles = Array.from(new Set(actionSpec.roles));
+
+      const pathPattern =
+        actionSpec.path ??
+        (actionSpec.action === 'create' && resourceSpec.newPath
+          ? resourceSpec.newPath
+          : DETAIL_ACTIONS.has(actionSpec.action) && resourceSpec.detailPath
+            ? resourceSpec.detailPath
+            : resourceSpec.basePath);
+
+      entries.push({
+        name: `${resourceSpec.resource}:${actionSpec.action}`,
+        displayName,
+        description,
+        resource: resourceSpec.resource,
+        action: actionSpec.action,
+        pathPattern,
+        roles: uniqueRoles,
+      });
+    }
+  }
+
+  return entries;
+};
+
+const permissionEntries = buildPermissionEntries();
+
+const resetDatabase = async () => {
+  await prisma.$transaction(async (tx) => {
+    await tx.rolePermission.deleteMany();
+    await tx.userRole.deleteMany();
+    await tx.session.deleteMany();
+    await tx.comment.deleteMany();
+    await tx.postTag.deleteMany();
+    await tx.postCategory.deleteMany();
+    await tx.post.deleteMany();
+    await tx.tag.deleteMany();
+    await tx.category.deleteMany();
+    await tx.permission.deleteMany();
+    await tx.roleModel.deleteMany();
+    await tx.user.deleteMany();
+  });
+};
+
 async function main() {
   console.log('🌱 Bắt đầu seed database...');
+
+  console.log('🧹 Đang xóa dữ liệu cũ...');
+  await resetDatabase();
+  console.log('🧼 Đã xóa dữ liệu cũ');
 
   // Tạo roles
   const roles = await Promise.all([
@@ -313,363 +827,58 @@ async function main() {
   console.log('✅ Đã tạo roles');
 
   // Tạo permissions dựa trên permission matrix
-  const permissions = await Promise.all([
-    // Admin permissions
-    prisma.permission.upsert({
-      where: { name: 'admin:view' },
-      update: {},
-      create: {
-        name: 'admin:view',
-        displayName: 'Xem Admin Dashboard',
-        description: 'Quyền truy cập vào khu vực quản trị',
-        resource: 'admin',
-        action: 'view',
-        pathPattern: '/admin',
-      },
-    }),
-    prisma.permission.upsert({
-      where: { name: 'settings:update' },
-      update: {},
-      create: {
-        name: 'settings:update',
-        displayName: 'Cập nhật cài đặt',
-        description: 'Quyền cập nhật cài đặt hệ thống',
-        resource: 'settings',
-        action: 'update',
-        pathPattern: '/admin/settings',
-      },
-    }),
+  const permissions = await Promise.all(
+    permissionEntries.map(({ roles: _roles, ...permissionData }) =>
+      prisma.permission.upsert({
+        where: { name: permissionData.name },
+        update: {
+          displayName: permissionData.displayName,
+          description: permissionData.description,
+          resource: permissionData.resource,
+          action: permissionData.action,
+          pathPattern: permissionData.pathPattern,
+          isActive: true,
+        },
+        create: {
+          ...permissionData,
+          isActive: true,
+        },
+      })
+    )
+  );
 
-    // Posts permissions
-    prisma.permission.upsert({
-      where: { name: 'posts:create' },
-      update: {},
-      create: {
-        name: 'posts:create',
-        displayName: 'Tạo bài viết',
-        description: 'Quyền tạo bài viết mới',
-        resource: 'posts',
-        action: 'create',
-        pathPattern: '/admin/posts',
-      },
-    }),
-    prisma.permission.upsert({
-      where: { name: 'posts:update' },
-      update: {},
-      create: {
-        name: 'posts:update',
-        displayName: 'Chỉnh sửa bài viết',
-        description: 'Quyền chỉnh sửa bài viết',
-        resource: 'posts',
-        action: 'update',
-        pathPattern: '/admin/posts/[id]',
-      },
-    }),
-    prisma.permission.upsert({
-      where: { name: 'posts:publish' },
-      update: {},
-      create: {
-        name: 'posts:publish',
-        displayName: 'Xuất bản bài viết',
-        description: 'Quyền xuất bản và ẩn bài viết',
-        resource: 'posts',
-        action: 'publish',
-        pathPattern: '/admin/posts/[id]',
-      },
-    }),
-    prisma.permission.upsert({
-      where: { name: 'posts:delete' },
-      update: {},
-      create: {
-        name: 'posts:delete',
-        displayName: 'Xóa bài viết',
-        description: 'Quyền xóa bài viết (soft delete)',
-        resource: 'posts',
-        action: 'delete',
-        pathPattern: '/admin/posts/[id]',
-      },
-    }),
-    prisma.permission.upsert({
-      where: { name: 'posts:hard-delete' },
-      update: {},
-      create: {
-        name: 'posts:hard-delete',
-        displayName: 'Xóa vĩnh viễn bài viết',
-        description: 'Quyền xóa vĩnh viễn bài viết',
-        resource: 'posts',
-        action: 'hard-delete',
-        pathPattern: '/admin/posts/[id]',
-      },
-    }),
-    prisma.permission.upsert({
-      where: { name: 'posts:restore' },
-      update: {},
-      create: {
-        name: 'posts:restore',
-        displayName: 'Khôi phục bài viết',
-        description: 'Quyền khôi phục bài viết đã xóa',
-        resource: 'posts',
-        action: 'restore',
-        pathPattern: '/admin/posts/[id]',
-      },
-    }),
-    prisma.permission.upsert({
-      where: { name: 'posts:bulk-delete' },
-      update: {},
-      create: {
-        name: 'posts:bulk-delete',
-        displayName: 'Xóa hàng loạt bài viết',
-        description: 'Quyền xóa nhiều bài viết cùng lúc',
-        resource: 'posts',
-        action: 'bulk-delete',
-        pathPattern: '/admin/posts',
-      },
-    }),
-    prisma.permission.upsert({
-      where: { name: 'posts:bulk-restore' },
-      update: {},
-      create: {
-        name: 'posts:bulk-restore',
-        displayName: 'Khôi phục hàng loạt bài viết',
-        description: 'Quyền khôi phục nhiều bài viết cùng lúc',
-        resource: 'posts',
-        action: 'bulk-restore',
-        pathPattern: '/admin/posts',
-      },
-    }),
-    prisma.permission.upsert({
-      where: { name: 'posts:bulk-hard-delete' },
-      update: {},
-      create: {
-        name: 'posts:bulk-hard-delete',
-        displayName: 'Xóa vĩnh viễn hàng loạt bài viết',
-        description: 'Quyền xóa vĩnh viễn nhiều bài viết cùng lúc',
-        resource: 'posts',
-        action: 'bulk-hard-delete',
-        pathPattern: '/admin/posts',
-      },
-    }),
+  console.log(`✅ Đã tạo permissions (${permissions.length})`);
 
-    // Users permissions
-    prisma.permission.upsert({
-      where: { name: 'users:create' },
-      update: {},
-      create: {
-        name: 'users:create',
-        displayName: 'Tạo người dùng',
-        description: 'Quyền tạo người dùng mới',
-        resource: 'users',
-        action: 'create',
-        pathPattern: '/admin/users',
-      },
-    }),
-    prisma.permission.upsert({
-      where: { name: 'users:update' },
-      update: {},
-      create: {
-        name: 'users:update',
-        displayName: 'Chỉnh sửa người dùng',
-        description: 'Quyền chỉnh sửa thông tin người dùng',
-        resource: 'users',
-        action: 'update',
-        pathPattern: '/admin/users/[id]',
-      },
-    }),
-    prisma.permission.upsert({
-      where: { name: 'users:delete' },
-      update: {},
-      create: {
-        name: 'users:delete',
-        displayName: 'Xóa người dùng',
-        description: 'Quyền xóa người dùng',
-        resource: 'users',
-        action: 'delete',
-        pathPattern: '/admin/users/[id]',
-      },
-    }),
+  const permissionMap = new Map(permissions.map((permission) => [permission.name, permission]));
+  const roleMap = new Map(roles.map((roleModel) => [roleModel.name, roleModel]));
+  const rolePermissionsData: { roleId: string; permissionId: string }[] = [];
 
-    // Categories permissions
-    prisma.permission.upsert({
-      where: { name: 'categories:create' },
-      update: {},
-      create: {
-        name: 'categories:create',
-        displayName: 'Tạo danh mục',
-        description: 'Quyền tạo danh mục mới',
-        resource: 'categories',
-        action: 'create',
-        pathPattern: '/admin/categories',
-      },
-    }),
-    prisma.permission.upsert({
-      where: { name: 'categories:update' },
-      update: {},
-      create: {
-        name: 'categories:update',
-        displayName: 'Chỉnh sửa danh mục',
-        description: 'Quyền chỉnh sửa danh mục',
-        resource: 'categories',
-        action: 'update',
-        pathPattern: '/admin/categories/[id]',
-      },
-    }),
-    prisma.permission.upsert({
-      where: { name: 'categories:delete' },
-      update: {},
-      create: {
-        name: 'categories:delete',
-        displayName: 'Xóa danh mục',
-        description: 'Quyền xóa danh mục',
-        resource: 'categories',
-        action: 'delete',
-        pathPattern: '/admin/categories/[id]',
-      },
-    }),
+  for (const entry of permissionEntries) {
+    const permissionRecord = permissionMap.get(entry.name);
+    if (!permissionRecord) {
+      continue;
+    }
 
-    // Tags permissions
-    prisma.permission.upsert({
-      where: { name: 'tags:create' },
-      update: {},
-      create: {
-        name: 'tags:create',
-        displayName: 'Tạo tag',
-        description: 'Quyền tạo tag mới',
-        resource: 'tags',
-        action: 'create',
-        pathPattern: '/admin/tags',
-      },
-    }),
-    prisma.permission.upsert({
-      where: { name: 'tags:update' },
-      update: {},
-      create: {
-        name: 'tags:update',
-        displayName: 'Chỉnh sửa tag',
-        description: 'Quyền chỉnh sửa tag',
-        resource: 'tags',
-        action: 'update',
-        pathPattern: '/admin/tags/[id]',
-      },
-    }),
-    prisma.permission.upsert({
-      where: { name: 'tags:delete' },
-      update: {},
-      create: {
-        name: 'tags:delete',
-        displayName: 'Xóa tag',
-        description: 'Quyền xóa tag',
-        resource: 'tags',
-        action: 'delete',
-        pathPattern: '/admin/tags/[id]',
-      },
-    }),
+    const uniqueRoles = Array.from(new Set(entry.roles));
+    for (const roleName of uniqueRoles) {
+      const roleRecord = roleMap.get(roleName);
+      if (!roleRecord) {
+        continue;
+      }
 
-    // Comments permissions
-    prisma.permission.upsert({
-      where: { name: 'comments:moderate' },
-      update: {},
-      create: {
-        name: 'comments:moderate',
-        displayName: 'Kiểm duyệt bình luận',
-        description: 'Quyền phê duyệt và từ chối bình luận',
-        resource: 'comments',
-        action: 'moderate',
-        pathPattern: '/admin/comments',
-      },
-    }),
-    prisma.permission.upsert({
-      where: { name: 'comments:delete' },
-      update: {},
-      create: {
-        name: 'comments:delete',
-        displayName: 'Xóa bình luận',
-        description: 'Quyền xóa bình luận',
-        resource: 'comments',
-        action: 'delete',
-        pathPattern: '/admin/comments/[id]',
-      },
-    }),
-
-    // Trash permissions
-    prisma.permission.upsert({
-      where: { name: 'trash:restore' },
-      update: {},
-      create: {
-        name: 'trash:restore',
-        displayName: 'Khôi phục từ thùng rác',
-        description: 'Quyền khôi phục các item từ thùng rác',
-        resource: 'trash',
-        action: 'restore',
-        pathPattern: '/admin/trash',
-      },
-    }),
-    prisma.permission.upsert({
-      where: { name: 'trash:delete' },
-      update: {},
-      create: {
-        name: 'trash:delete',
-        displayName: 'Xóa vĩnh viễn từ thùng rác',
-        description: 'Quyền xóa vĩnh viễn các item từ thùng rác',
-        resource: 'trash',
-        action: 'delete',
-        pathPattern: '/admin/trash',
-      },
-    }),
-  ]);
-
-  console.log('✅ Đã tạo permissions');
-
-  // Gán permissions cho roles theo permission matrix
-  const rolePermissions = [
-    // SUPER_ADMIN - có tất cả quyền
-    ...permissions.map(permission => ({
-      roleId: roles.find(r => r.name === 'SUPER_ADMIN')!.id,
-      permissionId: permission.id,
-    })),
-
-    // ADMIN - quyền quản lý nội dung và người dùng
-    ...permissions.filter(p => 
-      p.name.startsWith('admin:') ||
-      p.name.startsWith('posts:') ||
-      p.name.startsWith('categories:') ||
-      p.name.startsWith('tags:') ||
-      p.name.startsWith('comments:') ||
-      p.name.startsWith('trash:')
-    ).map(permission => ({
-      roleId: roles.find(r => r.name === 'ADMIN')!.id,
-      permissionId: permission.id,
-    })),
-
-    // EDITOR - quyền tạo và chỉnh sửa nội dung
-    ...permissions.filter(p => 
-      p.name === 'admin:view' ||
-      p.name === 'posts:create' ||
-      p.name === 'posts:update' ||
-      p.name === 'categories:create' ||
-      p.name === 'categories:update' ||
-      p.name === 'tags:create' ||
-      p.name === 'tags:update' ||
-      p.name === 'comments:moderate'
-    ).map(permission => ({
-      roleId: roles.find(r => r.name === 'EDITOR')!.id,
-      permissionId: permission.id,
-    })),
-
-    // USER - quyền hạn hạn chế
-    ...permissions.filter(p => 
-      p.name === 'admin:view'
-    ).map(permission => ({
-      roleId: roles.find(r => r.name === 'USER')!.id,
-      permissionId: permission.id,
-    })),
-  ];
+      rolePermissionsData.push({
+        roleId: roleRecord.id,
+        permissionId: permissionRecord.id,
+      });
+    }
+  }
 
   await prisma.rolePermission.createMany({
-    data: rolePermissions,
+    data: rolePermissionsData,
     skipDuplicates: true,
   });
 
-  console.log('✅ Đã gán permissions cho roles');
+  console.log(`✅ Đã gán permissions cho roles (${rolePermissionsData.length})`);
 
   // Tạo users
   const hashedPassword = await bcrypt.hash('password123', 10);

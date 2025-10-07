@@ -14,12 +14,15 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { LocalAuthGuard } from '../common/guards/local-auth.guard';
 import { RateLimitGuard } from '../common/guards/rate-limit.guard';
 import { Public } from '../common/decorators/public.decorator';
-import { 
-  CreateOperation, 
-  FindOneOperation, 
-  DeleteOperation 
+import {
+  CreateOperation,
+  FindOneOperation,
+  DeleteOperation,
 } from '../common/decorators/error-handling.decorators';
-import { AuthRateLimit, PublicRateLimit } from '../common/decorators/rate-limit.decorator';
+import {
+  AuthRateLimit,
+  PublicRateLimit,
+} from '../common/decorators/rate-limit.decorator';
 
 @Controller('auth')
 export class AuthController {

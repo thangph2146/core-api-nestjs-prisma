@@ -6,7 +6,11 @@ import { Category, Prisma } from '@prisma/client';
 import { BaseService } from '../../common/base.service';
 
 @Injectable()
-export class CategoriesService extends BaseService<Category, CreateCategoryDto, UpdateCategoryDto> {
+export class CategoriesService extends BaseService<
+  Category,
+  CreateCategoryDto,
+  UpdateCategoryDto
+> {
   constructor(prisma: PrismaService) {
     super(prisma, {
       modelName: 'category',
@@ -31,7 +35,7 @@ export class CategoriesService extends BaseService<Category, CreateCategoryDto, 
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
     return this.prisma.category.create({
-      data: createCategoryDto,  
+      data: createCategoryDto,
     });
   }
 
@@ -47,7 +51,9 @@ export class CategoriesService extends BaseService<Category, CreateCategoryDto, 
   }): Promise<Category[]> {
     // Use the new paginated method for consistency
     const result = await this.findManyPaginatedWithFilters('category', {
-      page: params?.skip ? Math.floor(params.skip / (params.take || 10)) + 1 : 1,
+      page: params?.skip
+        ? Math.floor(params.skip / (params.take || 10)) + 1
+        : 1,
       limit: params?.take || 10,
       where: params?.where,
       orderBy: params?.orderBy,
@@ -55,7 +61,7 @@ export class CategoriesService extends BaseService<Category, CreateCategoryDto, 
       search: params?.search,
       columnFilters: params?.columnFilters,
     });
-    
+
     return result.items;
   }
 
@@ -139,8 +145,8 @@ export class CategoriesService extends BaseService<Category, CreateCategoryDto, 
   // Bulk operations
 
   // Get deleted categories
-  async findDeleted(params?: { 
-    search?: string; 
+  async findDeleted(params?: {
+    search?: string;
     columnFilters?: Record<string, string>;
     page?: number;
     limit?: number;

@@ -68,7 +68,7 @@ export abstract class BaseController<
           }
         }
         // Remove the bracketed key from the root-level query
-        delete (normalized as Record<string, unknown>)[key];
+        delete normalized[key];
       }
     });
 
@@ -81,37 +81,41 @@ export abstract class BaseController<
     const limit = normalized.limit ? Number(normalized.limit) : undefined;
 
     // Remove raw page/limit to avoid being treated as filters
-    delete (normalized as Record<string, unknown>).page;
-    delete (normalized as Record<string, unknown>).limit;
+    delete normalized.page;
+    delete normalized.limit;
 
     // Use findManyPaginatedWithFilters method from BaseService for proper pagination structure
     console.log('BaseController: Calling findManyPaginatedWithFilters with:', {
       modelName: this.options.modelName,
       page,
       limit,
-      normalized
+      normalized,
     });
-    
+
     try {
       const result = await (this.service as any).findManyPaginatedWithFilters(
         this.options.modelName,
         {
           page,
           limit,
-          ...normalized as Record<string, unknown>,
-        }
+          ...normalized,
+        },
       );
-      
-      console.log('BaseController: Result from findManyPaginatedWithFilters:', result);
-      
+
+      console.log(
+        'BaseController: Result from findManyPaginatedWithFilters:',
+        result,
+      );
+
       // Return paginated result; interceptor will wrap with success and timestamp
       return result;
     } catch (error) {
-      console.error('BaseController: Error calling findManyPaginatedWithFilters:', error);
-      // Fallback to original findAll method
-      const items = await (this.service as any).findAll(
-        normalized as Record<string, unknown>,
+      console.error(
+        'BaseController: Error calling findManyPaginatedWithFilters:',
+        error,
       );
+      // Fallback to original findAll method
+      const items = await (this.service as any).findAll(normalized);
       return items;
     }
   }

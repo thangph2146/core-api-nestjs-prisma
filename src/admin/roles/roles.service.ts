@@ -7,7 +7,11 @@ import { RoleModel, Prisma } from '@prisma/client';
 import { BaseService } from '../../common/base.service';
 
 @Injectable()
-export class RolesService extends BaseService<RoleModel, CreateRoleDto, UpdateRoleDto> {
+export class RolesService extends BaseService<
+  RoleModel,
+  CreateRoleDto,
+  UpdateRoleDto
+> {
   constructor(prisma: PrismaService) {
     super(prisma, {
       modelName: 'roleModel',
@@ -60,7 +64,15 @@ export class RolesService extends BaseService<RoleModel, CreateRoleDto, UpdateRo
     search?: string;
     columnFilters?: Record<string, string>;
   }): Promise<RoleModel[]> {
-    const { skip, take, where, orderBy, includeDeleted, search, columnFilters } = params || {};
+    const {
+      skip,
+      take,
+      where,
+      orderBy,
+      includeDeleted,
+      search,
+      columnFilters,
+    } = params || {};
 
     // Use the new paginated method for consistency
     const result = await this.findManyPaginatedWithFilters('roleModel', {
@@ -72,11 +84,14 @@ export class RolesService extends BaseService<RoleModel, CreateRoleDto, UpdateRo
       search,
       columnFilters,
     });
-    
+
     return result.items;
   }
 
-  async findOne(id: string, includeDeleted: boolean = false): Promise<RoleModel> {
+  async findOne(
+    id: string,
+    includeDeleted: boolean = false,
+  ): Promise<RoleModel> {
     try {
       return await this.findUnique(
         'roleModel',
@@ -138,7 +153,10 @@ export class RolesService extends BaseService<RoleModel, CreateRoleDto, UpdateRo
   }
 
   // Permission management
-  async assignPermissions(roleId: string, assignPermissionsDto: AssignPermissionsDto): Promise<RoleModel> {
+  async assignPermissions(
+    roleId: string,
+    assignPermissionsDto: AssignPermissionsDto,
+  ): Promise<RoleModel> {
     await this.findOne(roleId); // Check if role exists
 
     // Remove existing permissions
@@ -147,10 +165,12 @@ export class RolesService extends BaseService<RoleModel, CreateRoleDto, UpdateRo
     });
 
     // Add new permissions
-    const rolePermissions = assignPermissionsDto.permissionIds.map(permissionId => ({
-      roleId,
-      permissionId,
-    }));
+    const rolePermissions = assignPermissionsDto.permissionIds.map(
+      (permissionId) => ({
+        roleId,
+        permissionId,
+      }),
+    );
 
     await this.prisma.rolePermission.createMany({
       data: rolePermissions,
@@ -175,10 +195,13 @@ export class RolesService extends BaseService<RoleModel, CreateRoleDto, UpdateRo
       throw new NotFoundException(`Role with ID ${roleId} not found`);
     }
 
-    return role.rolePermissions.map(rp => rp.permission);
+    return role.rolePermissions.map((rp) => rp.permission);
   }
 
-  async addPermission(roleId: string, permissionId: string): Promise<RoleModel> {
+  async addPermission(
+    roleId: string,
+    permissionId: string,
+  ): Promise<RoleModel> {
     await this.findOne(roleId); // Check if role exists
 
     await this.prisma.rolePermission.create({
@@ -191,7 +214,10 @@ export class RolesService extends BaseService<RoleModel, CreateRoleDto, UpdateRo
     return this.findOne(roleId);
   }
 
-  async removePermission(roleId: string, permissionId: string): Promise<RoleModel> {
+  async removePermission(
+    roleId: string,
+    permissionId: string,
+  ): Promise<RoleModel> {
     await this.findOne(roleId); // Check if role exists
 
     await this.prisma.rolePermission.deleteMany({
@@ -221,7 +247,7 @@ export class RolesService extends BaseService<RoleModel, CreateRoleDto, UpdateRo
       throw new NotFoundException(`Role with ID ${roleId} not found`);
     }
 
-    return role.userRoles.map(ur => ur.user);
+    return role.userRoles.map((ur) => ur.user);
   }
 
   async assignUserToRole(roleId: string, userId: string): Promise<RoleModel> {
@@ -251,8 +277,8 @@ export class RolesService extends BaseService<RoleModel, CreateRoleDto, UpdateRo
   }
 
   // Get deleted roles
-  async findDeleted(params?: { 
-    search?: string; 
+  async findDeleted(params?: {
+    search?: string;
     columnFilters?: Record<string, string>;
     page?: number;
     limit?: number;

@@ -6,7 +6,11 @@ import { Comment, Prisma } from '@prisma/client';
 import { BaseService } from '../../common/base.service';
 
 @Injectable()
-export class CommentsService extends BaseService<Comment, CreateCommentDto, UpdateCommentDto> {
+export class CommentsService extends BaseService<
+  Comment,
+  CreateCommentDto,
+  UpdateCommentDto
+> {
   constructor(prisma: PrismaService) {
     super(prisma, {
       modelName: 'comment',
@@ -23,8 +27,16 @@ export class CommentsService extends BaseService<Comment, CreateCommentDto, Upda
         status: { type: 'boolean', field: 'approved' },
         createdAt: { type: 'date' },
         updatedAt: { type: 'date' },
-        author: { type: 'nested', field: 'author', nestedFields: ['name', 'email'] },
-        post: { type: 'nested', field: 'post', nestedFields: ['title', 'slug'] },
+        author: {
+          type: 'nested',
+          field: 'author',
+          nestedFields: ['name', 'email'],
+        },
+        post: {
+          type: 'nested',
+          field: 'post',
+          nestedFields: ['title', 'slug'],
+        },
         authorId: { type: 'text' },
         postId: { type: 'text' },
       },
@@ -51,7 +63,15 @@ export class CommentsService extends BaseService<Comment, CreateCommentDto, Upda
     search?: string;
     columnFilters?: Record<string, string>;
   }): Promise<Comment[]> {
-    const { skip, take, where, orderBy, includeDeleted, search, columnFilters } = params || {};
+    const {
+      skip,
+      take,
+      where,
+      orderBy,
+      includeDeleted,
+      search,
+      columnFilters,
+    } = params || {};
 
     // Use the new paginated method for consistency
     const result = await this.findManyPaginatedWithFilters('comment', {
@@ -63,7 +83,7 @@ export class CommentsService extends BaseService<Comment, CreateCommentDto, Upda
       search,
       columnFilters,
     });
-    
+
     return result.items;
   }
 
@@ -136,8 +156,8 @@ export class CommentsService extends BaseService<Comment, CreateCommentDto, Upda
   // Bulk operations
 
   // Get deleted comments
-  async findDeleted(params?: { 
-    search?: string; 
+  async findDeleted(params?: {
+    search?: string;
     columnFilters?: Record<string, string>;
     page?: number;
     limit?: number;

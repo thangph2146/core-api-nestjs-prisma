@@ -40,9 +40,13 @@ export class DashboardService {
       ] = await Promise.all([
         this.prisma.post.count({ where: { deletedAt: null } }),
         this.prisma.post.count({ where: { published: true, deletedAt: null } }),
-        this.prisma.post.count({ where: { published: false, deletedAt: null } }),
+        this.prisma.post.count({
+          where: { published: false, deletedAt: null },
+        }),
         this.prisma.comment.count({ where: { deletedAt: null } }),
-        this.prisma.comment.count({ where: { approved: false, deletedAt: null } }),
+        this.prisma.comment.count({
+          where: { approved: false, deletedAt: null },
+        }),
         this.prisma.user.count({ where: { deletedAt: null } }),
         this.prisma.category.count({ where: { deletedAt: null } }),
         this.prisma.tag.count({ where: { deletedAt: null } }),

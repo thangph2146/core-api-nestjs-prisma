@@ -54,9 +54,7 @@ export abstract class BaseService<
     take?: number;
     cursor?: Record<string, unknown>;
     where?: Record<string, unknown>;
-    orderBy?:
-      | Record<string, unknown>
-      | Array<Record<string, unknown>>;
+    orderBy?: Record<string, unknown> | Array<Record<string, unknown>>;
     include?: Record<string, unknown>;
     includeDeleted?: boolean;
     search?: string;
@@ -255,7 +253,6 @@ export abstract class BaseService<
     });
   }
 
-
   // Enhanced paginated find method with search and column filters support
   async findManyPaginatedWithFilters(
     model: string,
@@ -299,7 +296,10 @@ export abstract class BaseService<
     const parsedPage = Number(page);
     const parsedLimit = Number(limit);
     const p = Math.max(1, Number.isFinite(parsedPage) ? parsedPage : 1);
-    const l = Math.max(1, Math.min(100, Number.isFinite(parsedLimit) ? parsedLimit : 10));
+    const l = Math.max(
+      1,
+      Math.min(100, Number.isFinite(parsedLimit) ? parsedLimit : 10),
+    );
     const skip = (p - 1) * l;
 
     const whereConditions: Record<string, unknown> = {
@@ -308,7 +308,8 @@ export abstract class BaseService<
     };
 
     if (columnFilters) {
-      const columnFilterConditions = this.buildColumnFilterConditions(columnFilters);
+      const columnFilterConditions =
+        this.buildColumnFilterConditions(columnFilters);
       Object.assign(whereConditions, columnFilterConditions);
     }
 
@@ -346,7 +347,10 @@ export abstract class BaseService<
         },
       };
     } catch (error) {
-      console.error('BaseService: Error in findManyPaginatedWithFilters:', error);
+      console.error(
+        'BaseService: Error in findManyPaginatedWithFilters:',
+        error,
+      );
       throw error;
     }
   }
@@ -358,7 +362,10 @@ export abstract class BaseService<
       return {};
     }
 
-    console.log('BaseService: buildColumnFilterConditions called with:', columnFilters);
+    console.log(
+      'BaseService: buildColumnFilterConditions called with:',
+      columnFilters,
+    );
     const conditions: Record<string, unknown> = {};
     const config = this.options.columnFilterConfig || {};
     console.log('BaseService: columnFilterConfig:', config);
@@ -405,7 +412,10 @@ export abstract class BaseService<
 
           case 'nested': {
             const nestedField = columnConfig.field || column;
-            if (columnConfig.nestedFields && columnConfig.nestedFields.length > 0) {
+            if (
+              columnConfig.nestedFields &&
+              columnConfig.nestedFields.length > 0
+            ) {
               conditions[nestedField] = {
                 OR: effectiveValues.flatMap((val) =>
                   columnConfig.nestedFields!.map((fieldKey) => ({
@@ -495,14 +505,19 @@ export abstract class BaseService<
         }
       }
 
-      console.log(`BaseService: Added condition for ${column}:`, conditions[column]);
+      console.log(
+        `BaseService: Added condition for ${column}:`,
+        conditions[column],
+      );
     });
 
     console.log('BaseService: Final column filter conditions:', conditions);
     return conditions;
   }
 
-  private normalizeFilterValues(value: string | string[] | undefined): string[] {
+  private normalizeFilterValues(
+    value: string | string[] | undefined,
+  ): string[] {
     if (!value) {
       return [];
     }
@@ -558,7 +573,9 @@ export abstract class BaseService<
     searchFields: string[],
   ):
     | {
-        OR: Array<{ [key: string]: { contains: string; mode?: 'insensitive' } }>;
+        OR: Array<{
+          [key: string]: { contains: string; mode?: 'insensitive' };
+        }>;
       }
     | undefined {
     if (!search || !search.trim()) {
@@ -582,10 +599,9 @@ export abstract class BaseService<
     );
   }
 
-
   // Generic findDeleted method
-  async findDeleted(params?: { 
-    search?: string; 
+  async findDeleted(params?: {
+    search?: string;
     columnFilters?: Record<string, string | string[]>;
     page?: number;
     limit?: number;

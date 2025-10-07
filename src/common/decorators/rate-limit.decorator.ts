@@ -11,9 +11,7 @@ export interface RateLimitOptions {
 export const RATE_LIMIT_KEY = 'rateLimit';
 
 export function RateLimit(options: RateLimitOptions) {
-  return applyDecorators(
-    SetMetadata(RATE_LIMIT_KEY, options),
-  );
+  return applyDecorators(SetMetadata(RATE_LIMIT_KEY, options));
 }
 
 // Predefined rate limit decorators for common use cases

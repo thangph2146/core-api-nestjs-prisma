@@ -38,7 +38,15 @@ export class TagsService extends BaseService<Tag, CreateTagDto, UpdateTagDto> {
     search?: string;
     columnFilters?: Record<string, string>;
   }): Promise<Tag[]> {
-    const { skip, take, where, orderBy, includeDeleted, search, columnFilters } = params || {};
+    const {
+      skip,
+      take,
+      where,
+      orderBy,
+      includeDeleted,
+      search,
+      columnFilters,
+    } = params || {};
 
     // Use the new paginated method for consistency
     const result = await this.findManyPaginatedWithFilters('tag', {
@@ -50,7 +58,7 @@ export class TagsService extends BaseService<Tag, CreateTagDto, UpdateTagDto> {
       search,
       columnFilters,
     });
-    
+
     return result.items;
   }
 
@@ -108,8 +116,8 @@ export class TagsService extends BaseService<Tag, CreateTagDto, UpdateTagDto> {
   // Bulk operations
 
   // Get deleted tags
-  async findDeleted(params?: { 
-    search?: string; 
+  async findDeleted(params?: {
+    search?: string;
     columnFilters?: Record<string, string>;
     page?: number;
     limit?: number;

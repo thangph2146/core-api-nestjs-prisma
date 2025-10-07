@@ -6,7 +6,11 @@ import { Post, Prisma } from '@prisma/client';
 import { BaseService } from '../../common/base.service';
 
 @Injectable()
-export class PostsService extends BaseService<Post, CreatePostDto, UpdatePostDto> {
+export class PostsService extends BaseService<
+  Post,
+  CreatePostDto,
+  UpdatePostDto
+> {
   constructor(prisma: PrismaService) {
     super(prisma, {
       modelName: 'post',
@@ -32,10 +36,10 @@ export class PostsService extends BaseService<Post, CreatePostDto, UpdatePostDto
         slug: { type: 'text' },
         published: { type: 'boolean' },
         status: { type: 'boolean', field: 'published' },
-        author: { 
-          type: 'nested', 
+        author: {
+          type: 'nested',
           field: 'author',
-          nestedFields: ['name', 'email'] 
+          nestedFields: ['name', 'email'],
         },
         createdAt: { type: 'date' },
         updatedAt: { type: 'date' },
@@ -170,7 +174,7 @@ export class PostsService extends BaseService<Post, CreatePostDto, UpdatePostDto
       search,
       columnFilters,
     });
-    
+
     return result.items;
   }
 

@@ -9,7 +9,9 @@ export class UserRolesController {
 
   // Get user with all roles and permissions
   @Get('user/:userId')
-  async getUserWithRolesAndPermissions(@Param('userId') userId: string): Promise<any> {
+  async getUserWithRolesAndPermissions(
+    @Param('userId') userId: string,
+  ): Promise<any> {
     return this.userRolesService.getUserWithRolesAndPermissions(userId);
   }
 
@@ -25,7 +27,10 @@ export class UserRolesController {
     @Param('userId') userId: string,
     @Param('permissionName') permissionName: string,
   ): Promise<{ hasPermission: boolean }> {
-    const hasPermission = await this.userRolesService.hasPermission(userId, permissionName);
+    const hasPermission = await this.userRolesService.hasPermission(
+      userId,
+      permissionName,
+    );
     return { hasPermission };
   }
 
@@ -35,7 +40,10 @@ export class UserRolesController {
     @Param('userId') userId: string,
     @Body() body: { permissions: string[] },
   ): Promise<{ hasAnyPermission: boolean }> {
-    const hasAnyPermission = await this.userRolesService.hasAnyPermission(userId, body.permissions);
+    const hasAnyPermission = await this.userRolesService.hasAnyPermission(
+      userId,
+      body.permissions,
+    );
     return { hasAnyPermission };
   }
 
@@ -45,7 +53,10 @@ export class UserRolesController {
     @Param('userId') userId: string,
     @Body() body: { permissions: string[] },
   ): Promise<{ hasAllPermissions: boolean }> {
-    const hasAllPermissions = await this.userRolesService.hasAllPermissions(userId, body.permissions);
+    const hasAllPermissions = await this.userRolesService.hasAllPermissions(
+      userId,
+      body.permissions,
+    );
     return { hasAllPermissions };
   }
 
@@ -85,7 +96,9 @@ export class UserRolesController {
 
   // Remove all roles from user
   @Delete('user/:userId/roles')
-  async removeAllRoles(@Param('userId') userId: string): Promise<{ message: string }> {
+  async removeAllRoles(
+    @Param('userId') userId: string,
+  ): Promise<{ message: string }> {
     await this.userRolesService.removeAllRoles(userId);
     return { message: 'All roles removed successfully' };
   }
@@ -98,7 +111,9 @@ export class UserRolesController {
 
   // Get users with specific permission
   @Get('permission/:permissionName/users')
-  async getUsersWithPermission(@Param('permissionName') permissionName: string): Promise<any[]> {
+  async getUsersWithPermission(
+    @Param('permissionName') permissionName: string,
+  ): Promise<any[]> {
     return this.userRolesService.getUsersWithPermission(permissionName);
   }
 

@@ -12,12 +12,14 @@ async function bootstrap() {
   });
 
   // Global validation
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: false,
-    transform: true,
-    transformOptions: { enableImplicitConversion: true },
-  }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: false,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
 
   await app.listen(process.env.PORT ?? 6789);
   console.log(`🚀 Core API đang chạy trên port ${process.env.PORT ?? 6789}`);

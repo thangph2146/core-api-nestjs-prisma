@@ -39,13 +39,17 @@ export class PermissionsController extends BaseController<
 
   // Get permissions by resource
   @Get('resource/:resource')
-  async getPermissionsByResource(@Param('resource') resource: string): Promise<Permission[]> {
+  async getPermissionsByResource(
+    @Param('resource') resource: string,
+  ): Promise<Permission[]> {
     return this.permissionsService.getPermissionsByResource(resource);
   }
 
   // Get permissions by action
   @Get('action/:action')
-  async getPermissionsByAction(@Param('action') action: string): Promise<Permission[]> {
+  async getPermissionsByAction(
+    @Param('action') action: string,
+  ): Promise<Permission[]> {
     return this.permissionsService.getPermissionsByAction(action);
   }
 

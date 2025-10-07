@@ -1,6 +1,15 @@
-import { Injectable, CanActivate, ExecutionContext, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { RATE_LIMIT_KEY, RateLimitOptions } from '../decorators/rate-limit.decorator';
+import {
+  RATE_LIMIT_KEY,
+  RateLimitOptions,
+} from '../decorators/rate-limit.decorator';
 
 // Simple in-memory rate limiter (trong production nên dùng Redis)
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
@@ -39,7 +48,8 @@ export class RateLimitGuard implements CanActivate {
 
     if (current.count >= max) {
       // Vượt quá giới hạn
-      const message = rateLimitOptions.message || 'Quá nhiều requests. Vui lòng thử lại sau.';
+      const message =
+        rateLimitOptions.message || 'Quá nhiều requests. Vui lòng thử lại sau.';
       throw new HttpException(
         {
           success: false,

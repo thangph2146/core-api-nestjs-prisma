@@ -1,4 +1,9 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { SessionService } from '../../auth/session.service';
 
@@ -20,10 +25,10 @@ export class SessionGuard implements CanActivate {
     try {
       // Verify JWT token
       const payload = await this.jwtService.verifyAsync(token);
-      
+
       // Check if session exists and is active
       const session = await this.sessionService.findSessionByAccessToken(token);
-      
+
       if (!session) {
         throw new UnauthorizedException('Session không hợp lệ hoặc đã hết hạn');
       }

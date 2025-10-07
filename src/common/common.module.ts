@@ -25,6 +25,12 @@ import { PrismaModule } from '../prisma/prisma.module';
     // 🔓 TẮT BẢO MẬT: Comment dòng dưới để tắt JWT authentication (chỉ dùng khi test)
     // { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],
-  exports: [JwtAuthGuard, LocalAuthGuard, JwtStrategy, LocalStrategy, RateLimitGuard], // Export để các module khác có thể sử dụng
+  exports: [
+    JwtAuthGuard,
+    LocalAuthGuard,
+    JwtStrategy,
+    LocalStrategy,
+    RateLimitGuard,
+  ], // Export để các module khác có thể sử dụng
 })
 export class CommonModule {}

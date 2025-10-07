@@ -68,7 +68,9 @@ export class SessionService {
   /**
    * Tìm session theo access token
    */
-  async findSessionByAccessToken(accessToken: string): Promise<SessionInfo | null> {
+  async findSessionByAccessToken(
+    accessToken: string,
+  ): Promise<SessionInfo | null> {
     const session = await this.prisma.session.findUnique({
       where: {
         accessToken,
@@ -102,7 +104,9 @@ export class SessionService {
   /**
    * Tìm session theo refresh token
    */
-  async findSessionByRefreshToken(refreshToken: string): Promise<SessionInfo | null> {
+  async findSessionByRefreshToken(
+    refreshToken: string,
+  ): Promise<SessionInfo | null> {
     const session = await this.prisma.session.findUnique({
       where: {
         refreshToken,
@@ -206,9 +210,13 @@ export class SessionService {
   /**
    * Lấy thông tin session từ request
    */
-  extractSessionInfoFromRequest(req: Request): { userAgent?: string; ipAddress?: string } {
+  extractSessionInfoFromRequest(req: Request): {
+    userAgent?: string;
+    ipAddress?: string;
+  } {
     const userAgent = req.headers['user-agent'];
-    const ipAddress = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
+    const ipAddress =
+      req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
 
     return {
       userAgent: userAgent || undefined,
@@ -238,7 +246,12 @@ export class SessionService {
   /**
    * Kiểm tra và refresh session nếu cần
    */
-  async refreshSessionIfNeeded(sessionId: string, newAccessToken: string, newRefreshToken: string, newExpiresAt: Date): Promise<SessionInfo | null> {
+  async refreshSessionIfNeeded(
+    sessionId: string,
+    newAccessToken: string,
+    newRefreshToken: string,
+    newExpiresAt: Date,
+  ): Promise<SessionInfo | null> {
     const session = await this.prisma.session.findUnique({
       where: { id: sessionId, isActive: true },
       include: {

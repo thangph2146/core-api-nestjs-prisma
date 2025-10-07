@@ -7,7 +7,11 @@ import { BaseService } from '../../common/base.service';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
-export class UsersService extends BaseService<User, CreateUserDto, UpdateUserDto> {
+export class UsersService extends BaseService<
+  User,
+  CreateUserDto,
+  UpdateUserDto
+> {
   constructor(prisma: PrismaService) {
     super(prisma, {
       modelName: 'user',
@@ -47,7 +51,15 @@ export class UsersService extends BaseService<User, CreateUserDto, UpdateUserDto
     search?: string;
     columnFilters?: Record<string, string>;
   }): Promise<User[]> {
-    const { skip, take, where, orderBy, includeDeleted, search, columnFilters } = params || {};
+    const {
+      skip,
+      take,
+      where,
+      orderBy,
+      includeDeleted,
+      search,
+      columnFilters,
+    } = params || {};
 
     // Use the new paginated method for consistency
     const result = await this.findManyPaginatedWithFilters('user', {
@@ -59,7 +71,7 @@ export class UsersService extends BaseService<User, CreateUserDto, UpdateUserDto
       search,
       columnFilters,
     });
-    
+
     return result.items;
   }
 
@@ -87,13 +99,13 @@ export class UsersService extends BaseService<User, CreateUserDto, UpdateUserDto
 
   async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
     await this.findOne(id); // Check if user exists
-    
+
     // Hash password if it's being updated
     const updateData = { ...updateUserDto };
     if (updateData.password) {
       updateData.password = await bcrypt.hash(updateData.password, 10);
     }
-    
+
     return this.prisma.user.update({
       where: { id },
       data: updateData,
@@ -120,8 +132,8 @@ export class UsersService extends BaseService<User, CreateUserDto, UpdateUserDto
   // Bulk operations
 
   // Get deleted users
-  async findDeleted(params?: { 
-    search?: string; 
+  async findDeleted(params?: {
+    search?: string;
     columnFilters?: Record<string, string>;
     page?: number;
     limit?: number;

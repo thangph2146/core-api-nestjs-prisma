@@ -6,11 +6,21 @@ import { Permission, Prisma } from '@prisma/client';
 import { BaseService } from '../../common/base.service';
 
 @Injectable()
-export class PermissionsService extends BaseService<Permission, CreatePermissionDto, UpdatePermissionDto> {
+export class PermissionsService extends BaseService<
+  Permission,
+  CreatePermissionDto,
+  UpdatePermissionDto
+> {
   constructor(prisma: PrismaService) {
     super(prisma, {
       modelName: 'permission',
-      searchFields: ['name', 'displayName', 'description', 'resource', 'action'],
+      searchFields: [
+        'name',
+        'displayName',
+        'description',
+        'resource',
+        'action',
+      ],
       defaultInclude: {
         rolePermissions: {
           include: {
@@ -56,7 +66,15 @@ export class PermissionsService extends BaseService<Permission, CreatePermission
     search?: string;
     columnFilters?: Record<string, string>;
   }): Promise<Permission[]> {
-    const { skip, take, where, orderBy, includeDeleted, search, columnFilters } = params || {};
+    const {
+      skip,
+      take,
+      where,
+      orderBy,
+      includeDeleted,
+      search,
+      columnFilters,
+    } = params || {};
 
     // Use the new paginated method for consistency
     const result = await this.findManyPaginatedWithFilters('permission', {
@@ -68,11 +86,14 @@ export class PermissionsService extends BaseService<Permission, CreatePermission
       search,
       columnFilters,
     });
-    
+
     return result.items;
   }
 
-  async findOne(id: string, includeDeleted: boolean = false): Promise<Permission> {
+  async findOne(
+    id: string,
+    includeDeleted: boolean = false,
+  ): Promise<Permission> {
     try {
       return await this.findUnique(
         'permission',
@@ -141,9 +162,12 @@ export class PermissionsService extends BaseService<Permission, CreatePermission
     });
   }
 
-  async findByResourceAndAction(resource: string, action: string): Promise<Permission[]> {
+  async findByResourceAndAction(
+    resource: string,
+    action: string,
+  ): Promise<Permission[]> {
     return this.prisma.permission.findMany({
-      where: { 
+      where: {
         resource,
         action,
       },
@@ -163,7 +187,10 @@ export class PermissionsService extends BaseService<Permission, CreatePermission
     });
   }
 
-  async update(id: string, updatePermissionDto: UpdatePermissionDto): Promise<Permission> {
+  async update(
+    id: string,
+    updatePermissionDto: UpdatePermissionDto,
+  ): Promise<Permission> {
     await this.findOne(id); // Check if permission exists
     return this.prisma.permission.update({
       where: { id },
@@ -202,10 +229,12 @@ export class PermissionsService extends BaseService<Permission, CreatePermission
     });
 
     if (!permission) {
-      throw new NotFoundException(`Permission with ID ${permissionId} not found`);
+      throw new NotFoundException(
+        `Permission with ID ${permissionId} not found`,
+      );
     }
 
-    return permission.rolePermissions.map(rp => rp.role);
+    return permission.rolePermissions.map((rp) => rp.role);
   }
 
   // Get unique resources
@@ -214,7 +243,7 @@ export class PermissionsService extends BaseService<Permission, CreatePermission
       select: { resource: true },
       distinct: ['resource'],
     });
-    return permissions.map(p => p.resource);
+    return permissions.map((p) => p.resource);
   }
 
   // Get unique actions
@@ -223,7 +252,7 @@ export class PermissionsService extends BaseService<Permission, CreatePermission
       select: { action: true },
       distinct: ['action'],
     });
-    return permissions.map(p => p.action);
+    return permissions.map((p) => p.action);
   }
 
   // Get permissions by resource
@@ -237,8 +266,8 @@ export class PermissionsService extends BaseService<Permission, CreatePermission
   }
 
   // Get deleted permissions
-  async findDeleted(params?: { 
-    search?: string; 
+  async findDeleted(params?: {
+    search?: string;
     columnFilters?: Record<string, string>;
     page?: number;
     limit?: number;

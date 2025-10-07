@@ -11,9 +11,9 @@ import {
 import { SessionService } from './session.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SessionGuard } from '../common/guards/session.guard';
-import { 
-  FindOneOperation, 
-  DeleteOperation 
+import {
+  FindOneOperation,
+  DeleteOperation,
 } from '../common/decorators/error-handling.decorators';
 
 @Controller('sessions')
@@ -27,12 +27,14 @@ export class SessionController {
   @UseGuards(JwtAuthGuard)
   @FindOneOperation('User Sessions')
   async getMySessions(@Request() req) {
-    const sessions = await this.sessionService.getUserActiveSessions(req.user.id);
-    
+    const sessions = await this.sessionService.getUserActiveSessions(
+      req.user.id,
+    );
+
     return {
       success: true,
       data: {
-        sessions: sessions.map(session => ({
+        sessions: sessions.map((session) => ({
           id: session.id,
           userAgent: session.userAgent,
           ipAddress: session.ipAddress,
@@ -54,7 +56,7 @@ export class SessionController {
   @FindOneOperation('Session Stats')
   async getSessionStats(@Request() req) {
     const stats = await this.sessionService.getSessionStats(req.user.id);
-    
+
     return {
       success: true,
       data: {
@@ -73,15 +75,19 @@ export class SessionController {
   @DeleteOperation('Session')
   async deleteSession(@Param('sessionId') sessionId: string, @Request() req) {
     // Kiểm tra session thuộc về user hiện tại
-    const userSessions = await this.sessionService.getUserActiveSessions(req.user.id);
-    const sessionExists = userSessions.some(session => session.id === sessionId);
-    
+    const userSessions = await this.sessionService.getUserActiveSessions(
+      req.user.id,
+    );
+    const sessionExists = userSessions.some(
+      (session) => session.id === sessionId,
+    );
+
     if (!sessionExists) {
       throw new Error('Session không tồn tại hoặc không thuộc về bạn');
     }
 
     await this.sessionService.invalidateSession(sessionId);
-    
+
     return {
       success: true,
       data: {
@@ -100,15 +106,19 @@ export class SessionController {
   @DeleteOperation('All Other Sessions')
   async deleteAllOtherSessions(@Request() req) {
     const currentSessionId = req.session.id;
-    const userSessions = await this.sessionService.getUserActiveSessions(req.user.id);
-    
+    const userSessions = await this.sessionService.getUserActiveSessions(
+      req.user.id,
+    );
+
     // Xóa tất cả sessions trừ session hiện tại
-    const sessionsToDelete = userSessions.filter(session => session.id !== currentSessionId);
-    
+    const sessionsToDelete = userSessions.filter(
+      (session) => session.id !== currentSessionId,
+    );
+
     for (const session of sessionsToDelete) {
       await this.sessionService.invalidateSession(session.id);
     }
-    
+
     return {
       success: true,
       data: {
@@ -133,7 +143,7 @@ export class SessionController {
     }
 
     const deletedCount = await this.sessionService.cleanupExpiredSessions();
-    
+
     return {
       success: true,
       data: {

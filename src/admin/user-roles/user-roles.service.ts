@@ -39,17 +39,20 @@ export class UserRolesService {
   // Get user permissions (flattened from roles)
   async getUserPermissions(userId: string): Promise<string[]> {
     const user = await this.getUserWithRolesAndPermissions(userId);
-    
+
     const permissions: string[] = user.userRoles
-      .flatMap(ur => ur.role.rolePermissions)
-      .map(rp => rp.permission.name);
+      .flatMap((ur) => ur.role.rolePermissions)
+      .map((rp) => rp.permission.name);
 
     // Remove duplicates
     return [...new Set(permissions)];
   }
 
   // Check if user has specific permission
-  async hasPermission(userId: string, permissionName: string): Promise<boolean> {
+  async hasPermission(
+    userId: string,
+    permissionName: string,
+  ): Promise<boolean> {
     const userRole = await this.prisma.userRole.findFirst({
       where: {
         userId: userId,
@@ -67,14 +70,17 @@ export class UserRolesService {
   }
 
   // Check if user has any of the specified permissions
-  async hasAnyPermission(userId: string, permissionNames: string[]): Promise<boolean> {
+  async hasAnyPermission(
+    userId: string,
+    permissionNames: string[],
+  ): Promise<boolean> {
     const userRole = await this.prisma.userRole.findFirst({
       where: {
         userId: userId,
         role: {
           rolePermissions: {
             some: {
-              permission: { 
+              permission: {
                 name: { in: permissionNames },
               },
             },
@@ -87,19 +93,27 @@ export class UserRolesService {
   }
 
   // Check if user has all of the specified permissions
-  async hasAllPermissions(userId: string, permissionNames: string[]): Promise<boolean> {
+  async hasAllPermissions(
+    userId: string,
+    permissionNames: string[],
+  ): Promise<boolean> {
     const userPermissions = await this.getUserPermissions(userId);
-    return permissionNames.every(permission => userPermissions.includes(permission));
+    return permissionNames.every((permission) =>
+      userPermissions.includes(permission),
+    );
   }
 
   // Get user roles
   async getUserRoles(userId: string): Promise<any[]> {
     const user = await this.getUserWithRolesAndPermissions(userId);
-    return user.userRoles.map(ur => ur.role);
+    return user.userRoles.map((ur) => ur.role);
   }
 
   // Assign single role to user
-  async assignRole(userId: string, assignRoleDto: AssignRoleDto): Promise<UserRole> {
+  async assignRole(
+    userId: string,
+    assignRoleDto: AssignRoleDto,
+  ): Promise<UserRole> {
     // Check if user exists
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -113,7 +127,9 @@ export class UserRolesService {
       where: { id: assignRoleDto.roleId },
     });
     if (!role) {
-      throw new NotFoundException(`Role with ID ${assignRoleDto.roleId} not found`);
+      throw new NotFoundException(
+        `Role with ID ${assignRoleDto.roleId} not found`,
+      );
     }
 
     // Check if assignment already exists
@@ -139,7 +155,10 @@ export class UserRolesService {
   }
 
   // Assign multiple roles to user
-  async assignRoles(userId: string, assignRolesDto: AssignRolesDto): Promise<UserRole[]> {
+  async assignRoles(
+    userId: string,
+    assignRolesDto: AssignRolesDto,
+  ): Promise<UserRole[]> {
     // Check if user exists
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -162,7 +181,7 @@ export class UserRolesService {
     });
 
     // Create new assignments
-    const userRoles = assignRolesDto.roleIds.map(roleId => ({
+    const userRoles = assignRolesDto.roleIds.map((roleId) => ({
       userId,
       roleId,
     }));
@@ -212,7 +231,7 @@ export class UserRolesService {
       },
     });
 
-    return userRoles.map(ur => ur.user);
+    return userRoles.map((ur) => ur.user);
   }
 
   // Get users with specific permission
@@ -241,7 +260,7 @@ export class UserRolesService {
 
     // Remove duplicates
     const uniqueUsers = userRoles.reduce((acc: any[], ur) => {
-      if (!acc.find(u => u.id === ur.user.id)) {
+      if (!acc.find((u) => u.id === ur.user.id)) {
         acc.push(ur.user);
       }
       return acc;
@@ -263,7 +282,7 @@ export class UserRolesService {
       },
     });
 
-    return roles.map(role => ({
+    return roles.map((role) => ({
       id: role.id,
       name: role.name,
       displayName: role.displayName,
@@ -284,7 +303,7 @@ export class UserRolesService {
       },
     });
 
-    return permissions.map(permission => ({
+    return permissions.map((permission) => ({
       id: permission.id,
       name: permission.name,
       displayName: permission.displayName,

@@ -1,7 +1,13 @@
-import { IsEmail, IsString, MinLength, IsOptional, IsEnum } from 'class-validator';
-import { 
-  IsOptionalString, 
-  IsOptionalEnum 
+import {
+  IsEmail,
+  IsString,
+  MinLength,
+  IsOptional,
+  IsEnum,
+} from 'class-validator';
+import {
+  IsOptionalString,
+  IsOptionalEnum,
 } from '../../common/decorators/validation.decorators';
 
 export class LoginDto {
@@ -24,11 +30,11 @@ export class RegisterDto {
   @IsOptionalString()
   name?: string;
 
-  @IsOptionalEnum({ 
-    SUPER_ADMIN: 'SUPER_ADMIN', 
-    ADMIN: 'ADMIN', 
-    EDITOR: 'EDITOR', 
-    USER: 'USER' 
+  @IsOptionalEnum({
+    SUPER_ADMIN: 'SUPER_ADMIN',
+    ADMIN: 'ADMIN',
+    EDITOR: 'EDITOR',
+    USER: 'USER',
   })
   role?: 'SUPER_ADMIN' | 'ADMIN' | 'EDITOR' | 'USER';
 }
