@@ -2,14 +2,49 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssignRoleDto } from './dto/assign-role.dto';
 import { AssignRolesDto } from './dto/assign-roles.dto';
-import { UserRole, Prisma } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
+
+type UserWithRolesAndPermissions = Prisma.UserGetPayload<{
+  include: {
+    userRoles: {
+      include: {
+        role: {
+          include: {
+            rolePermissions: {
+              include: {
+                permission: true;
+              };
+            };
+          };
+        };
+      };
+    };
+  };
+}>;
+
+type UserRoleWithRole = Prisma.UserRoleGetPayload<{
+  include: {
+    role: true;
+  };
+}>;
+
+type SimpleUser = Prisma.UserGetPayload<{
+  select: {
+    id: true;
+    name: true;
+    email: true;
+    role: true;
+  };
+}>;
 
 @Injectable()
 export class UserRolesService {
   constructor(private readonly prisma: PrismaService) {}
 
   // Get user with all roles and permissions
-  async getUserWithRolesAndPermissions(userId: string): Promise<any> {
+  async getUserWithRolesAndPermissions(
+    userId: string,
+  ): Promise<UserWithRolesAndPermissions> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -40,12 +75,11 @@ export class UserRolesService {
   async getUserPermissions(userId: string): Promise<string[]> {
     const user = await this.getUserWithRolesAndPermissions(userId);
 
-    const permissions: string[] = user.userRoles
-      .flatMap((ur) => ur.role.rolePermissions)
-      .map((rp) => rp.permission.name);
+    const permissions = user.userRoles
+      .flatMap((userRole) => userRole.role.rolePermissions)
+      .map((rolePermission) => rolePermission.permission.name);
 
-    // Remove duplicates
-    return [...new Set(permissions)];
+    return Array.from(new Set(permissions));
   }
 
   // Check if user has specific permission
@@ -104,7 +138,9 @@ export class UserRolesService {
   }
 
   // Get user roles
-  async getUserRoles(userId: string): Promise<any[]> {
+  async getUserRoles(
+    userId: string,
+  ): Promise<UserWithRolesAndPermissions['userRoles'][number]['role'][]> {
     const user = await this.getUserWithRolesAndPermissions(userId);
     return user.userRoles.map((ur) => ur.role);
   }
@@ -158,7 +194,7 @@ export class UserRolesService {
   async assignRoles(
     userId: string,
     assignRolesDto: AssignRolesDto,
-  ): Promise<UserRole[]> {
+  ): Promise<UserRoleWithRole[]> {
     // Check if user exists
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -216,7 +252,7 @@ export class UserRolesService {
   }
 
   // Get users with specific role
-  async getUsersWithRole(roleId: string): Promise<any[]> {
+  async getUsersWithRole(roleId: string): Promise<SimpleUser[]> {
     const userRoles = await this.prisma.userRole.findMany({
       where: { roleId },
       include: {
@@ -235,7 +271,7 @@ export class UserRolesService {
   }
 
   // Get users with specific permission
-  async getUsersWithPermission(permissionName: string): Promise<any[]> {
+  async getUsersWithPermission(permissionName: string): Promise<SimpleUser[]> {
     const userRoles = await this.prisma.userRole.findMany({
       where: {
         role: {
@@ -258,9 +294,9 @@ export class UserRolesService {
       },
     });
 
-    // Remove duplicates
-    const uniqueUsers = userRoles.reduce((acc: any[], ur) => {
-      if (!acc.find((u) => u.id === ur.user.id)) {
+    const uniqueUsers = userRoles.reduce<SimpleUser[]>((acc, ur) => {
+      const exists = acc.some((user) => user.id === ur.user.id);
+      if (!exists) {
         acc.push(ur.user);
       }
       return acc;
@@ -270,7 +306,15 @@ export class UserRolesService {
   }
 
   // Get role statistics
-  async getRoleStatistics(): Promise<any> {
+  async getRoleStatistics(): Promise<
+    Array<{
+      id: string;
+      name: string;
+      displayName: string | null;
+      userCount: number;
+      permissionCount: number;
+    }>
+  > {
     const roles = await this.prisma.roleModel.findMany({
       include: {
         _count: {
@@ -292,7 +336,16 @@ export class UserRolesService {
   }
 
   // Get permission statistics
-  async getPermissionStatistics(): Promise<any> {
+  async getPermissionStatistics(): Promise<
+    Array<{
+      id: string;
+      name: string;
+      displayName: string | null;
+      resource: string;
+      action: string;
+      roleCount: number;
+    }>
+  > {
     const permissions = await this.prisma.permission.findMany({
       include: {
         _count: {

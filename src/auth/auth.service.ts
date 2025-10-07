@@ -9,9 +9,58 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto, RegisterDto, RefreshTokenDto } from './dto/auth.dto';
 import { SessionService } from './session.service';
-import { Request } from 'express';
+import type { Request as ExpressRequest } from 'express';
 import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
+import { Role } from '@prisma/client';
+import type { Permission, Prisma } from '@prisma/client';
+
+type JwtUser = {
+  id: string;
+  email?: string | null;
+  role?: string | null;
+} & Record<string, unknown>;
+
+type AuthenticatedRequest = ExpressRequest & {
+  user?: JwtUser;
+};
+
+type UserWithRolesAndPermissions = Prisma.UserGetPayload<{
+  include: {
+    userRoles: {
+      include: {
+        role: {
+          include: {
+            rolePermissions: {
+              include: {
+                permission: true;
+              };
+            };
+          };
+        };
+      };
+    };
+  };
+}>;
+
+type RolePermissionWithPermission = Prisma.RolePermissionGetPayload<{
+  include: {
+    permission: true;
+  };
+}>;
+
+export interface TokenPair {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+}
+
+interface JwtPayload {
+  sub: string;
+  email: string;
+  role: string;
+  [key: string]: unknown;
+}
 
 @Injectable()
 export class AuthService {
@@ -22,7 +71,7 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {}
 
-  async login(loginDto: LoginDto, req?: Request) {
+  async login(loginDto: LoginDto, req?: AuthenticatedRequest) {
     try {
       const { email, password } = loginDto;
 
@@ -135,6 +184,7 @@ export class AuthService {
   async register(registerDto: RegisterDto) {
     try {
       const { email, password, name, role = 'USER' } = registerDto;
+      const normalizedRole = role as Role;
 
       // Validate input
       if (!email || !password) {
@@ -159,7 +209,7 @@ export class AuthService {
           email,
           password: hashedPassword,
           name,
-          role: role as any,
+          role: normalizedRole,
         },
         include: {
           userRoles: {
@@ -234,7 +284,7 @@ export class AuthService {
         this.configService.get<string>('JWT_SECRET', 'dev-secret'),
       );
 
-      const payload = this.jwtService.verify(refreshToken, {
+      const payload = this.jwtService.verify<JwtPayload>(refreshToken, {
         secret: refreshSecret,
       });
 
@@ -300,7 +350,7 @@ export class AuthService {
         },
         timestamp: new Date().toISOString(),
       };
-    } catch (error) {
+    } catch {
       throw new InternalServerErrorException('Lỗi hệ thống khi đăng xuất');
     }
   }
@@ -353,8 +403,10 @@ export class AuthService {
     };
   }
 
-  private async generateTokens(user: any) {
-    const payload = {
+  private async generateTokens(
+    user: UserWithRolesAndPermissions,
+  ): Promise<TokenPair> {
+    const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
       role: user.role,
@@ -432,22 +484,28 @@ export class AuthService {
     };
   }
 
-  private extractUserPermissions(user: any) {
-    const permissions = new Set();
-    const rolePermissions = new Set();
+  private extractUserPermissions(user: UserWithRolesAndPermissions): {
+    permissions: Permission[];
+    rolePermissions: RolePermissionWithPermission[];
+  } {
+    const permissions = new Map<string, Permission>();
+    const rolePermissions: RolePermissionWithPermission[] = [];
 
-    user.userRoles.forEach((userRole: any) => {
-      userRole.role.rolePermissions.forEach((rp: any) => {
-        if (rp.permission.isActive) {
-          permissions.add(rp.permission);
-          rolePermissions.add(rp);
+    user.userRoles.forEach((userRole) => {
+      userRole.role.rolePermissions.forEach((rolePermission) => {
+        if (rolePermission.permission.isActive) {
+          permissions.set(
+            rolePermission.permission.id,
+            rolePermission.permission,
+          );
+          rolePermissions.push(rolePermission);
         }
       });
     });
 
     return {
-      permissions: Array.from(permissions),
-      rolePermissions: Array.from(rolePermissions),
+      permissions: Array.from(permissions.values()),
+      rolePermissions,
     };
   }
 }

@@ -67,8 +67,10 @@ export class DashboardService {
         tags: { total: totalTags },
       };
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown dashboard error';
       throw new InternalServerErrorException(
-        `Failed to get dashboard stats: ${error.message}`,
+        `Failed to get dashboard stats: ${message}`,
       );
     }
   }

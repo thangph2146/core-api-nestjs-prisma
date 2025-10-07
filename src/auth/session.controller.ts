@@ -7,6 +7,8 @@ import {
   Request,
   HttpCode,
   HttpStatus,
+  UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { SessionService } from './session.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -15,6 +17,53 @@ import {
   FindOneOperation,
   DeleteOperation,
 } from '../common/decorators/error-handling.decorators';
+import type { Request as ExpressRequest } from 'express';
+
+type JwtUser = {
+  id: string;
+  role?: string | null;
+} & Record<string, unknown>;
+
+type SessionContext = {
+  id: string;
+} & Record<string, unknown>;
+
+type SessionControllerRequest = ExpressRequest & {
+  user?: JwtUser;
+  session?: SessionContext;
+};
+
+const ensureJwtUser = (req: SessionControllerRequest): JwtUser => {
+  const { user } = req;
+
+  if (
+    user &&
+    typeof user === 'object' &&
+    'id' in user &&
+    typeof (user as { id: unknown }).id === 'string'
+  ) {
+    return user as JwtUser;
+  }
+
+  throw new UnauthorizedException('User context is missing');
+};
+
+const ensureSessionContext = (
+  req: SessionControllerRequest,
+): SessionContext => {
+  const { session } = req;
+
+  if (
+    session &&
+    typeof session === 'object' &&
+    'id' in session &&
+    typeof (session as { id: unknown }).id === 'string'
+  ) {
+    return session;
+  }
+
+  throw new UnauthorizedException('Session context is missing');
+};
 
 @Controller('sessions')
 export class SessionController {
@@ -26,10 +75,9 @@ export class SessionController {
   @Get('my-sessions')
   @UseGuards(JwtAuthGuard)
   @FindOneOperation('User Sessions')
-  async getMySessions(@Request() req) {
-    const sessions = await this.sessionService.getUserActiveSessions(
-      req.user.id,
-    );
+  async getMySessions(@Request() req: SessionControllerRequest) {
+    const user = ensureJwtUser(req);
+    const sessions = await this.sessionService.getUserActiveSessions(user.id);
 
     return {
       success: true,
@@ -54,8 +102,9 @@ export class SessionController {
   @Get('stats')
   @UseGuards(JwtAuthGuard)
   @FindOneOperation('Session Stats')
-  async getSessionStats(@Request() req) {
-    const stats = await this.sessionService.getSessionStats(req.user.id);
+  async getSessionStats(@Request() req: SessionControllerRequest) {
+    const user = ensureJwtUser(req);
+    const stats = await this.sessionService.getSessionStats(user.id);
 
     return {
       success: true,
@@ -73,17 +122,23 @@ export class SessionController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
   @DeleteOperation('Session')
-  async deleteSession(@Param('sessionId') sessionId: string, @Request() req) {
+  async deleteSession(
+    @Param('sessionId') sessionId: string,
+    @Request() req: SessionControllerRequest,
+  ) {
     // Kiểm tra session thuộc về user hiện tại
+    const user = ensureJwtUser(req);
     const userSessions = await this.sessionService.getUserActiveSessions(
-      req.user.id,
+      user.id,
     );
     const sessionExists = userSessions.some(
       (session) => session.id === sessionId,
     );
 
     if (!sessionExists) {
-      throw new Error('Session không tồn tại hoặc không thuộc về bạn');
+      throw new ForbiddenException(
+        'Session không tồn tại hoặc không thuộc về bạn',
+      );
     }
 
     await this.sessionService.invalidateSession(sessionId);
@@ -104,10 +159,12 @@ export class SessionController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(SessionGuard)
   @DeleteOperation('All Other Sessions')
-  async deleteAllOtherSessions(@Request() req) {
-    const currentSessionId = req.session.id;
+  async deleteAllOtherSessions(@Request() req: SessionControllerRequest) {
+    const user = ensureJwtUser(req);
+    const session = ensureSessionContext(req);
+    const currentSessionId = session.id;
     const userSessions = await this.sessionService.getUserActiveSessions(
-      req.user.id,
+      user.id,
     );
 
     // Xóa tất cả sessions trừ session hiện tại
@@ -136,10 +193,11 @@ export class SessionController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
   @DeleteOperation('Expired Sessions')
-  async cleanupExpiredSessions(@Request() req) {
+  async cleanupExpiredSessions(@Request() req: SessionControllerRequest) {
     // Chỉ admin mới có thể cleanup
-    if (req.user.role !== 'SUPER_ADMIN' && req.user.role !== 'ADMIN') {
-      throw new Error('Không có quyền thực hiện hành động này');
+    const user = ensureJwtUser(req);
+    if (user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
+      throw new ForbiddenException('Không có quyền thực hiện hành động này');
     }
 
     const deletedCount = await this.sessionService.cleanupExpiredSessions();

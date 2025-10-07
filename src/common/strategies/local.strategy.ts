@@ -35,7 +35,8 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
     }
 
     // Trả về user object không chứa password
-    const { password: _, ...result } = user;
+    const { password: removedPassword, ...result } = user;
+    void removedPassword;
     return result;
   }
 }

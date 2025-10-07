@@ -6,6 +6,26 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { SessionService } from '../../auth/session.service';
+import type { SessionInfo } from '../../auth/session.service';
+import type { Request as ExpressRequest } from 'express';
+
+type JwtPayload = {
+  sub: unknown;
+  email?: unknown;
+  role?: unknown;
+  [key: string]: unknown;
+};
+
+type SessionGuardUser = {
+  id: string;
+  email?: string;
+  role?: string;
+} & Record<string, unknown>;
+
+type SessionGuardRequest = ExpressRequest & {
+  user?: SessionGuardUser;
+  session?: SessionInfo;
+};
 
 @Injectable()
 export class SessionGuard implements CanActivate {
@@ -15,7 +35,7 @@ export class SessionGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<SessionGuardRequest>();
     const token = this.extractTokenFromHeader(request);
 
     if (!token) {
@@ -24,7 +44,11 @@ export class SessionGuard implements CanActivate {
 
     try {
       // Verify JWT token
-      const payload = await this.jwtService.verifyAsync(token);
+      const payload = await this.jwtService.verifyAsync<JwtPayload>(token);
+
+      if (!payload || typeof payload.sub !== 'string') {
+        throw new UnauthorizedException('Token không hợp lệ');
+      }
 
       // Check if session exists and is active
       const session = await this.sessionService.findSessionByAccessToken(token);
@@ -39,19 +63,27 @@ export class SessionGuard implements CanActivate {
       // Attach user and session to request
       request.user = {
         id: payload.sub,
-        email: payload.email,
-        role: payload.role,
+        email: typeof payload.email === 'string' ? payload.email : undefined,
+        role: typeof payload.role === 'string' ? payload.role : undefined,
       };
       request.session = session;
 
       return true;
-    } catch (error) {
+    } catch {
       throw new UnauthorizedException('Token không hợp lệ');
     }
   }
 
-  private extractTokenFromHeader(request: any): string | undefined {
-    const [type, token] = request.headers.authorization?.split(' ') ?? [];
+  private extractTokenFromHeader(
+    request: SessionGuardRequest,
+  ): string | undefined {
+    const authorizationHeader = request.headers.authorization;
+
+    if (typeof authorizationHeader !== 'string') {
+      return undefined;
+    }
+
+    const [type, token] = authorizationHeader.split(' ');
     return type === 'Bearer' ? token : undefined;
   }
 }

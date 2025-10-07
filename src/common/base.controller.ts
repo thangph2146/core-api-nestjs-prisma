@@ -37,54 +37,50 @@ export abstract class BaseController<
   async findAll(@Query() query: Record<string, unknown>) {
     // Normalize bracket-notation query params: columnFilters[foo]=bar -> columnFilters: { foo: 'bar' }
     const normalized: Record<string, unknown> = { ...query };
-    const columnFilters: Record<string, string | string[]> =
-      (normalized.columnFilters as Record<string, string | string[]>) || {};
+    const columnFilters: Record<string, string | string[]> = {};
 
-    Object.keys(query).forEach((key) => {
+    Object.entries(query).forEach(([key, value]) => {
       const match = key.match(/^columnFilters\[(.+?)\](?:\[\])?$/);
-      if (match) {
-        const col = match[1];
-        const rawVal = query[key];
-        if (rawVal !== undefined && rawVal !== null) {
-          const existing = columnFilters[col];
-          if (Array.isArray(rawVal)) {
-            const newValues = rawVal.map((val) => (val ?? '').toString());
-            if (Array.isArray(existing)) {
-              columnFilters[col] = [...existing, ...newValues];
-            } else if (typeof existing === 'string') {
-              columnFilters[col] = [existing, ...newValues];
-            } else {
-              columnFilters[col] = newValues;
-            }
-          } else {
-            const stringValue = String(rawVal);
-            if (Array.isArray(existing)) {
-              columnFilters[col] = [...existing, stringValue];
-            } else if (typeof existing === 'string') {
-              columnFilters[col] = [existing, stringValue];
-            } else {
-              columnFilters[col] = stringValue;
-            }
-          }
-        }
-        // Remove the bracketed key from the root-level query
-        delete normalized[key];
+      if (!match) {
+        return;
       }
+
+      const column = match[1];
+      const values = this.normalizeFilterInput(value);
+      if (values.length === 0) {
+        delete normalized[key];
+        return;
+      }
+
+      const existing = columnFilters[column];
+      if (Array.isArray(existing)) {
+        columnFilters[column] = [...existing, ...values];
+      } else if (typeof existing === 'string') {
+        columnFilters[column] = [existing, ...values];
+      } else {
+        columnFilters[column] = values.length === 1 ? values[0] : values;
+      }
+
+      delete normalized[key];
     });
 
     if (Object.keys(columnFilters).length > 0) {
       normalized.columnFilters = columnFilters;
     }
 
-    // Extract pagination params
-    const page = normalized.page ? Number(normalized.page) : undefined;
-    const limit = normalized.limit ? Number(normalized.limit) : undefined;
+    const pageValue = normalized.page;
+    const limitValue = normalized.limit;
+    const page = this.parseNumericQueryParam(pageValue);
+    const limit = this.parseNumericQueryParam(limitValue);
 
-    // Remove raw page/limit to avoid being treated as filters
-    delete normalized.page;
-    delete normalized.limit;
+    if (pageValue !== undefined) {
+      delete normalized.page;
+    }
 
-    // Use findManyPaginatedWithFilters method from BaseService for proper pagination structure
+    if (limitValue !== undefined) {
+      delete normalized.limit;
+    }
+
     console.log('BaseController: Calling findManyPaginatedWithFilters with:', {
       modelName: this.options.modelName,
       page,
@@ -93,7 +89,7 @@ export abstract class BaseController<
     });
 
     try {
-      const result = await (this.service as any).findManyPaginatedWithFilters(
+      const result = await this.service.findManyPaginatedWithFilters(
         this.options.modelName,
         {
           page,
@@ -107,16 +103,13 @@ export abstract class BaseController<
         result,
       );
 
-      // Return paginated result; interceptor will wrap with success and timestamp
       return result;
     } catch (error) {
       console.error(
         'BaseController: Error calling findManyPaginatedWithFilters:',
         error,
       );
-      // Fallback to original findAll method
-      const items = await (this.service as any).findAll(normalized);
-      return items;
+      return this.service.findAll(normalized);
     }
   }
 
@@ -163,5 +156,41 @@ export abstract class BaseController<
   @Post('bulk-hard-delete')
   bulkHardDelete(@Body() bulkHardDeleteDto: BulkHardDeleteDto) {
     return this.service.bulkHardDelete(bulkHardDeleteDto);
+  }
+
+  private normalizeFilterInput(value: unknown): string[] {
+    if (Array.isArray(value)) {
+      return value
+        .filter(
+          (item): item is string | number | boolean =>
+            typeof item === 'string' ||
+            typeof item === 'number' ||
+            typeof item === 'boolean',
+        )
+        .map((item) => item.toString());
+    }
+
+    if (
+      typeof value === 'string' ||
+      typeof value === 'number' ||
+      typeof value === 'boolean'
+    ) {
+      return [value.toString()];
+    }
+
+    return [];
+  }
+
+  private parseNumericQueryParam(value: unknown): number | undefined {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : undefined;
+    }
+
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    }
+
+    return undefined;
   }
 }

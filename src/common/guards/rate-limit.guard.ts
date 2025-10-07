@@ -10,9 +10,18 @@ import {
   RATE_LIMIT_KEY,
   RateLimitOptions,
 } from '../decorators/rate-limit.decorator';
+import type { Request as ExpressRequest } from 'express';
 
 // Simple in-memory rate limiter (trong production nên dùng Redis)
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
+
+type RateLimitRequestUser = {
+  id?: string | null;
+} & Record<string, unknown>;
+
+type RateLimitRequest = ExpressRequest & {
+  user?: RateLimitRequestUser;
+};
 
 @Injectable()
 export class RateLimitGuard implements CanActivate {
@@ -28,7 +37,7 @@ export class RateLimitGuard implements CanActivate {
       return true; // Không có rate limit
     }
 
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<RateLimitRequest>();
     const clientId = this.getClientId(request);
     const now = Date.now();
     const windowMs = rateLimitOptions.windowMs;
@@ -67,9 +76,11 @@ export class RateLimitGuard implements CanActivate {
     return true;
   }
 
-  private getClientId(request: any): string {
+  private getClientId(request: RateLimitRequest): string {
     // Ưu tiên IP address, fallback về user ID nếu có
-    const ip = request.ip || request.connection?.remoteAddress || 'unknown';
+    const connectionAddress = request.connection?.remoteAddress;
+    const socketAddress = request.socket?.remoteAddress;
+    const ip = request.ip || connectionAddress || socketAddress || 'unknown';
     const userId = request.user?.id;
     return userId ? `${userId}:${ip}` : ip;
   }
