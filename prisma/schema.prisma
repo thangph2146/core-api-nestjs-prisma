@@ -23,6 +23,7 @@ model User {
   posts     Post[]
   userRoles UserRole[]
   sessions  Session[]
+  parent    Parent?
 
   @@map("users")
 }
@@ -179,9 +180,105 @@ model Session {
   @@map("sessions")
 }
 
+model Parent {
+  id            String          @id @default(cuid())
+  userId        String?         @unique
+  fullName      String
+  phone         String          @unique
+  email         String          @unique
+  address       String?
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  deletedAt     DateTime?
+  user          User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  students      Student[]
+  messagesSent  Message[]       @relation("MessageSender")
+  messagesReceived Message[]    @relation("MessageReceiver")
+
+  @@map("parents")
+}
+
+model Student {
+  id              String           @id @default(cuid())
+  parentId        String
+  fullName        String
+  dateOfBirth     DateTime
+  gender          Gender
+  studentCode     String           @unique
+  className       String?
+  grade           String?
+  avatar          String?
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
+  parent          Parent           @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  academicResults AcademicResult[]
+
+  @@map("students")
+}
+
+model AcademicResult {
+  id          String   @id @default(cuid())
+  studentId   String
+  subject     String
+  semester    String
+  year        Int
+  score       Float
+  grade       String?
+  notes       String?
+  teacherName String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@map("academic_results")
+}
+
+model Message {
+  id         String      @id @default(cuid())
+  senderId   String?
+  receiverId String
+  subject    String
+  content    String      @db.Text
+  isRead     Boolean     @default(false)
+  type       MessageType @default(NOTIFICATION)
+  priority   Priority    @default(NORMAL)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  deletedAt  DateTime?
+  sender     Parent?     @relation("MessageSender", fields: [senderId], references: [id], onDelete: SetNull)
+  receiver   Parent      @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
 enum Role {
   SUPER_ADMIN
   ADMIN
   EDITOR
   USER
+  PARENT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum MessageType {
+  NOTIFICATION
+  ANNOUNCEMENT
+  PERSONAL
+  SYSTEM
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
 }

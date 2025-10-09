@@ -1,4 +1,10 @@
-import { PrismaClient, Role } from '@prisma/client';
+import {
+  PrismaClient,
+  Role,
+  Gender,
+  MessageType,
+  Priority,
+} from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -822,6 +828,15 @@ async function main() {
         description: 'Người dùng thông thường, quyền hạn hạn chế',
       },
     }),
+    prisma.roleModel.upsert({
+      where: { name: 'PARENT' },
+      update: {},
+      create: {
+        name: 'PARENT',
+        displayName: 'Parent',
+        description: 'Phụ huynh học sinh, truy cập cổng thông tin phụ huynh',
+      },
+    }),
   ]);
 
   console.log('✅ Đã tạo roles');
@@ -884,35 +899,46 @@ async function main() {
   const hashedPassword = await bcrypt.hash('password123', 10);
   
   const adminUser = await prisma.user.upsert({
-    where: { email: 'admin@phgroup.com' },
+    where: { email: 'admin@hub.edu.vn' },
     update: {},
     create: {
-      email: 'admin@phgroup.com',
-      name: 'PHGroup Admin',
+      email: 'admin@hub.edu.vn',
+      name: 'PQLCNTT Admin',
       password: hashedPassword,
       role: Role.SUPER_ADMIN,
     },
   });
 
   const editorUser = await prisma.user.upsert({
-    where: { email: 'editor@phgroup.com' },
+    where: { email: 'editor@hub.edu.vn' },
     update: {},
     create: {
-      email: 'editor@phgroup.com',
-      name: 'PHGroup Editor',
+      email: 'editor@hub.edu.vn',
+      name: 'PQLCNTT Editor',
       password: hashedPassword,
       role: Role.EDITOR,
     },
   });
 
   const authorUser = await prisma.user.upsert({
-    where: { email: 'author@phgroup.com' },
+    where: { email: 'author@hub.edu.vn' },
     update: {},
     create: {
-      email: 'author@phgroup.com',
-      name: 'PHGroup Author',
+      email: 'author@hub.edu.vn',
+      name: 'PQLCNTT Author',
       password: hashedPassword,
       role: Role.USER,
+    },
+  });
+
+  const parentUser = await prisma.user.upsert({
+    where: { email: 'parent@hub.edu.vn' },
+    update: {},
+    create: {
+      email: 'parent@hub.edu.vn',
+      name: 'Phụ huynh PQLCNTT',
+      password: hashedPassword,
+      role: Role.PARENT,
     },
   });
 
@@ -930,6 +956,10 @@ async function main() {
       {
         userId: authorUser.id,
         roleId: roles.find(r => r.name === 'USER')!.id,
+      },
+      {
+        userId: parentUser.id,
+        roleId: roles.find(r => r.name === 'PARENT')!.id,
       },
     ],
     skipDuplicates: true,
@@ -978,6 +1008,58 @@ async function main() {
   ]);
 
   console.log('✅ Đã tạo categories');
+
+  // Tạo parents có liên kết user
+  const parentOne = await prisma.parent.upsert({
+    where: { email: 'parent@hub.edu.vn' },
+    update: {
+      userId: parentUser.id,
+      fullName: 'Nguyễn Văn Phụ Huynh',
+      phone: '0900123456',
+      address: '123 Đường Trung Tâm, Quận 1, TP.HCM',
+    },
+    create: {
+      userId: parentUser.id,
+      fullName: 'Nguyễn Văn Phụ Huynh',
+      phone: '0900123456',
+      email: 'parent@hub.edu.vn',
+      address: '123 Đường Trung Tâm, Quận 1, TP.HCM',
+    },
+  });
+
+  const parentTwo = await prisma.parent.upsert({
+    where: { email: 'parent2@hub.edu.vn' },
+    update: {
+      fullName: 'Trần Thị Minh',
+      phone: '0900222333',
+      address: '456 Đường Học Tập, Quận Bình Thạnh, TP.HCM',
+    },
+    create: {
+      fullName: 'Trần Thị Minh',
+      phone: '0900222333',
+      email: 'parent2@hub.edu.vn',
+      address: '456 Đường Học Tập, Quận Bình Thạnh, TP.HCM',
+    },
+  });
+
+  const parentThree = await prisma.parent.upsert({
+    where: { email: 'parent3@hub.edu.vn' },
+    update: {
+      fullName: 'Lê Hoàng Anh',
+      phone: '0900888777',
+      address: '789 Đường Tri Thức, Quận 7, TP.HCM',
+    },
+    create: {
+      fullName: 'Lê Hoàng Anh',
+      phone: '0900888777',
+      email: 'parent3@hub.edu.vn',
+      address: '789 Đường Tri Thức, Quận 7, TP.HCM',
+    },
+  });
+
+  const parents = [parentOne, parentTwo, parentThree];
+
+  console.log(`✅ Đã tạo parents (${parents.length})`);
 
   // Tạo tags
   const tags = await Promise.all([
@@ -1151,24 +1233,236 @@ async function main() {
 
   console.log('✅ Đã tạo comments');
 
+  // Tạo students và kết quả học tập
+  const studentOne = await prisma.student.upsert({
+    where: { studentCode: 'STU-1001' },
+    update: {
+      parentId: parentOne.id,
+      fullName: 'Nguyễn Minh Khoa',
+      dateOfBirth: new Date('2012-09-01'),
+      gender: Gender.MALE,
+      className: '6A1',
+      grade: 'Lớp 6',
+      avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=400&fit=crop',
+    },
+    create: {
+      parentId: parentOne.id,
+      fullName: 'Nguyễn Minh Khoa',
+      dateOfBirth: new Date('2012-09-01'),
+      gender: Gender.MALE,
+      studentCode: 'STU-1001',
+      className: '6A1',
+      grade: 'Lớp 6',
+      avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=400&fit=crop',
+    },
+  });
+
+  const studentTwo = await prisma.student.upsert({
+    where: { studentCode: 'STU-1002' },
+    update: {
+      parentId: parentOne.id,
+      fullName: 'Nguyễn Minh Thư',
+      dateOfBirth: new Date('2015-03-15'),
+      gender: Gender.FEMALE,
+      className: '3B2',
+      grade: 'Lớp 3',
+      avatar: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=400&h=400&fit=crop',
+    },
+    create: {
+      parentId: parentOne.id,
+      fullName: 'Nguyễn Minh Thư',
+      dateOfBirth: new Date('2015-03-15'),
+      gender: Gender.FEMALE,
+      studentCode: 'STU-1002',
+      className: '3B2',
+      grade: 'Lớp 3',
+      avatar: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=400&h=400&fit=crop',
+    },
+  });
+
+  const studentThree = await prisma.student.upsert({
+    where: { studentCode: 'STU-1003' },
+    update: {
+      parentId: parentTwo.id,
+      fullName: 'Phạm Quang Huy',
+      dateOfBirth: new Date('2010-12-20'),
+      gender: Gender.MALE,
+      className: '9C1',
+      grade: 'Lớp 9',
+    },
+    create: {
+      parentId: parentTwo.id,
+      fullName: 'Phạm Quang Huy',
+      dateOfBirth: new Date('2010-12-20'),
+      gender: Gender.MALE,
+      studentCode: 'STU-1003',
+      className: '9C1',
+      grade: 'Lớp 9',
+    },
+  });
+
+  const studentFour = await prisma.student.upsert({
+    where: { studentCode: 'STU-1004' },
+    update: {
+      parentId: parentThree.id,
+      fullName: 'Lê Bảo Anh',
+      dateOfBirth: new Date('2013-06-10'),
+      gender: Gender.FEMALE,
+      className: '5A3',
+      grade: 'Lớp 5',
+    },
+    create: {
+      parentId: parentThree.id,
+      fullName: 'Lê Bảo Anh',
+      dateOfBirth: new Date('2013-06-10'),
+      gender: Gender.FEMALE,
+      studentCode: 'STU-1004',
+      className: '5A3',
+      grade: 'Lớp 5',
+    },
+  });
+
+  const studentRecords = [studentOne, studentTwo, studentThree, studentFour];
+  console.log('✅ Đã tạo students');
+
+  if (studentRecords.some((student) => !student)) {
+    throw new Error('❌ Không tạo được đủ học sinh mẫu.');
+  }
+
+  const createdStudents = await prisma.student.findMany({
+    where: {
+      studentCode: {
+        in: ['STU-1001', 'STU-1002', 'STU-1003', 'STU-1004'],
+      },
+    },
+    orderBy: { studentCode: 'asc' },
+  });
+
+  const studentMap = new Map(createdStudents.map((student) => [student.studentCode, student.id]));
+
+  const academicResultsPayload = [
+    {
+      studentId: studentMap.get('STU-1001')!,
+      subject: 'Toán',
+      semester: 'HK1',
+      year: 2024,
+      score: 8.5,
+      grade: 'Giỏi',
+      notes: 'Tiến bộ rõ rệt trong kỳ thi giữa kỳ',
+      teacherName: 'Thầy Nguyễn Văn A',
+    },
+    {
+      studentId: studentMap.get('STU-1001')!,
+      subject: 'Văn',
+      semester: 'HK1',
+      year: 2024,
+      score: 8.0,
+      grade: 'Khá',
+      notes: 'Cần cải thiện kỹ năng viết đoạn văn nghị luận',
+      teacherName: 'Cô Trần Thị B',
+    },
+    {
+      studentId: studentMap.get('STU-1002')!,
+      subject: 'Tiếng Anh',
+      semester: 'HK1',
+      year: 2024,
+      score: 9.2,
+      grade: 'Giỏi',
+      notes: 'Phát âm tốt, cần tăng cường kỹ năng nghe',
+      teacherName: 'Cô Lê Thị C',
+    },
+    {
+      studentId: studentMap.get('STU-1003')!,
+      subject: 'Vật lý',
+      semester: 'HK1',
+      year: 2024,
+      score: 7.5,
+      grade: 'Khá',
+      notes: 'Cần chủ động hơn trong các bài thực hành',
+      teacherName: 'Thầy Phạm Văn D',
+    },
+    {
+      studentId: studentMap.get('STU-1004')!,
+      subject: 'Khoa học',
+      semester: 'HK1',
+      year: 2024,
+      score: 8.8,
+      grade: 'Giỏi',
+      notes: 'Thực hành tốt, tích cực tham gia hoạt động nhóm',
+      teacherName: 'Cô Nguyễn Thị E',
+    },
+  ];
+
+  await prisma.academicResult.createMany({
+    data: academicResultsPayload,
+    skipDuplicates: true,
+  });
+
+  console.log('✅ Đã tạo kết quả học tập');
+
+  if (studentRecords.some((student) => !student)) {
+    throw new Error('❌ Không thể xác định thông tin học sinh sau khi tạo.');
+  }
+
+  await prisma.message.createMany({
+    data: [
+      {
+        senderId: parentOne.id,
+        receiverId: parentTwo.id,
+        subject: 'Thông báo họp phụ huynh tháng 10',
+        content:
+          'Kính gửi phụ huynh, buổi họp phụ huynh lớp 6A1 sẽ diễn ra vào lúc 8h sáng thứ 7 ngày 20/10.',
+        isRead: false,
+        type: MessageType.ANNOUNCEMENT,
+        priority: Priority.NORMAL,
+      },
+      {
+        senderId: parentTwo.id,
+        receiverId: parentOne.id,
+        subject: 'Thông báo học phí tháng này',
+        content: 'Xin chào phụ huynh, vui lòng hoàn thành học phí tháng 10 trước ngày 25/10.',
+        isRead: false,
+        type: MessageType.NOTIFICATION,
+        priority: Priority.HIGH,
+      },
+      {
+        senderId: parentThree.id,
+        receiverId: parentOne.id,
+        subject: 'Chia sẻ kinh nghiệm học tập',
+        content: 'Chào phụ huynh, tôi muốn chia sẻ một số phương pháp giúp con tự giác học bài hiệu quả.',
+        isRead: true,
+        type: MessageType.PERSONAL,
+        priority: Priority.LOW,
+      },
+    ],
+  });
+
+  console.log('✅ Đã tạo messages');
+
   console.log('🎉 Seed database hoàn thành!');
   console.log('\n📊 Thống kê:');
-  console.log(`- Roles: ${roles.length} (SUPER_ADMIN, ADMIN, EDITOR, USER)`);
+  console.log(`- Roles: ${roles.length} (SUPER_ADMIN, ADMIN, EDITOR, USER, PARENT)`);
   console.log(`- Permissions: ${permissions.length} (tất cả permissions từ permission matrix)`);
-  console.log(`- Users: 3 (1 Super Admin, 1 Editor, 1 User)`);
+  console.log(`- Users: 4 (1 Super Admin, 1 Editor, 1 User, 1 Parent)`);
   console.log(`- Categories: ${categories.length}`);
   console.log(`- Tags: ${tags.length}`);
   console.log(`- Posts: 3 (2 published, 1 draft)`);
   console.log(`- Comments: 3 (2 approved, 1 pending)`);
+  console.log(`- Parents: ${parents.length}`);
+  console.log(`- Students: ${createdStudents.length}`);
+  console.log(`- Academic Results: ${academicResultsPayload.length}`);
+  console.log(`- Messages: 3`);
   console.log('\n🔐 Permission System:');
   console.log('✅ SUPER_ADMIN: Toàn quyền hệ thống');
   console.log('✅ ADMIN: Quản lý nội dung và người dùng');
   console.log('✅ EDITOR: Tạo và chỉnh sửa nội dung');
   console.log('✅ USER: Quyền hạn hạn chế');
+  console.log('✅ PARENT: Truy cập cổng thông tin phụ huynh');
   console.log('\n🔑 Thông tin đăng nhập:');
-  console.log('Email: admin@phgroup.com | Password: password123 (SUPER_ADMIN)');
-  console.log('Email: editor@phgroup.com | Password: password123 (EDITOR)');
-  console.log('Email: author@phgroup.com | Password: password123 (USER)');
+  console.log('Email: admin@hub.edu.vn | Password: password123 (SUPER_ADMIN)');
+  console.log('Email: editor@hub.edu.vn | Password: password123 (EDITOR)');
+  console.log('Email: author@hub.edu.vn | Password: password123 (USER)');
+  console.log('Email: parent@hub.edu.vn | Password: password123 (PARENT)');
 }
 
 main()
