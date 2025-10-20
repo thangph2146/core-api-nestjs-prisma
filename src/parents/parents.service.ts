@@ -144,6 +144,7 @@ export class ParentsService extends BaseService<
             name: true,
             avatar: true,
             createdAt: true,
+            updatedAt: true,
           },
         },
         students: {
@@ -165,8 +166,46 @@ export class ParentsService extends BaseService<
       },
     });
 
+    // Fallback: nếu chưa có bản ghi phụ huynh, trả về dữ liệu cơ bản từ bảng users
     if (!parent) {
-      throw new NotFoundException('Không tìm thấy thông tin phụ huynh');
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          avatar: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng');
+      }
+
+      // Trả về cấu trúc tương thích với ParentProfile để UI hiển thị được
+      return {
+        id: user.id,
+        userId: user.id,
+        fullName: user.name ?? user.email,
+        phone: '',
+        email: user.email,
+        address: null,
+        isActive: false,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        deletedAt: null,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name ?? null,
+          avatar: user.avatar ?? null,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+        },
+        students: [],
+      } as any;
     }
 
     return parent;
@@ -180,10 +219,55 @@ export class ParentsService extends BaseService<
       },
     });
 
+    // Nếu chưa có hồ sơ phụ huynh, tự tạo mới từ dữ liệu cập nhật + thông tin user
     if (!parent) {
-      throw new NotFoundException('Không tìm thấy thông tin phụ huynh');
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng');
+      }
+
+      // Nếu thiếu phone (bắt buộc), báo lỗi
+      if (!updateDto.phone) {
+        throw new ConflictException('Vui lòng cung cấp số điện thoại để tạo hồ sơ phụ huynh');
+      }
+
+      // Kiểm tra xung đột email/phone nếu có
+      const conflictEmail = updateDto.email
+        ? await this.prisma.parent.findFirst({ where: { email: updateDto.email } })
+        : null;
+      const conflictPhone = updateDto.phone
+        ? await this.prisma.parent.findFirst({ where: { phone: updateDto.phone } })
+        : null;
+
+      if (conflictEmail || conflictPhone) {
+        throw new ConflictException('Email hoặc số điện thoại đã được sử dụng');
+      }
+
+      return this.prisma.parent.create({
+        data: {
+          userId,
+          fullName: updateDto.fullName ?? user.name ?? user.email,
+          phone: updateDto.phone,
+          email: updateDto.email ?? user.email,
+          address: updateDto.address ?? undefined,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              avatar: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          },
+          students: true,
+        },
+      });
     }
 
+    // Trường hợp đã có hồ sơ, tiếp tục cập nhật như cũ
     // Check for conflicts if email or phone is being updated
     if (updateDto.email || updateDto.phone) {
       const conflictWhere: Prisma.ParentWhereInput = {
@@ -211,7 +295,16 @@ export class ParentsService extends BaseService<
       where: { id: parent.id },
       data: updateDto,
       include: {
-        user: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            avatar: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
         students: true,
       },
     });

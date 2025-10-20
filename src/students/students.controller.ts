@@ -16,6 +16,7 @@ import { UpdateStudentDto } from './dto/update-student.dto';
 import { BaseController } from '../common/base.controller';
 import { Student } from '@prisma/client';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RequestAddStudentDto } from './dto/request-add-student.dto';
 
 @Controller('students')
 export class StudentsController extends BaseController<
@@ -66,6 +67,13 @@ export class StudentsController extends BaseController<
     // Note: Without @Request() decorator, we can't verify ownership here
     // Consider using a Guard for ownership verification instead
     return this.studentsService.update(id, updateStudentDto);
+  }
+
+  // Parents request to add a child; created inactive, pending admin approval
+  @UseGuards(JwtAuthGuard)
+  @Post('request-add')
+  async requestAdd(@Body() body: RequestAddStudentDto, @Request() req: any) {
+    return this.studentsService.requestAddStudentByUser(req.user.userId, body);
   }
 }
 

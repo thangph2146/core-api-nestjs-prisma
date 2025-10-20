@@ -9,6 +9,7 @@ import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { Student, Prisma } from '@prisma/client';
 import { BaseService } from '../common/base.service';
+import { RequestAddStudentDto } from './dto/request-add-student.dto';
 
 @Injectable()
 export class StudentsService extends BaseService<
@@ -244,6 +245,62 @@ export class StudentsService extends BaseService<
       includeDeleted: true,
       search: params?.search,
       columnFilters: params?.columnFilters,
+    });
+  }
+
+  /**
+   * Phụ huynh yêu cầu thêm thông tin con bằng tài khoản đăng nhập
+   * - Xác định phụ huynh theo `userId`
+   * - Giới hạn số lượng con mỗi phụ huynh ở mức hợp lý
+   * - Tạo học sinh với `isActive = false` để chờ admin duyệt
+   */
+  async requestAddStudentByUser(
+    userId: string,
+    payload: RequestAddStudentDto,
+  ): Promise<Student> {
+    const MAX_CHILDREN_PER_PARENT = 5;
+
+    const parent = await this.prisma.parent.findFirst({
+      where: { userId, deletedAt: null },
+    });
+
+    if (!parent) {
+      throw new NotFoundException('Không tìm thấy thông tin phụ huynh');
+    }
+
+    const currentChildrenCount = await this.prisma.student.count({
+      where: { parentId: parent.id, deletedAt: null },
+    });
+
+    if (currentChildrenCount >= MAX_CHILDREN_PER_PARENT) {
+      throw new ForbiddenException(
+        `Bạn đã đạt giới hạn tối đa ${MAX_CHILDREN_PER_PARENT} học sinh cho mỗi phụ huynh`,
+      );
+    }
+
+    const existingStudent = await this.prisma.student.findUnique({
+      where: { studentCode: payload.studentCode },
+    });
+    if (existingStudent) {
+      throw new ConflictException('Mã học sinh đã được sử dụng');
+    }
+
+    return this.prisma.student.create({
+      data: {
+        parentId: parent.id,
+        fullName: payload.fullName,
+        dateOfBirth: new Date(payload.dateOfBirth),
+        gender: payload.gender,
+        studentCode: payload.studentCode,
+        className: payload.className,
+        grade: payload.grade,
+        avatar: payload.avatar,
+        isActive: false,
+      },
+      include: {
+        parent: true,
+        academicResults: true,
+      },
     });
   }
 }
