@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { Message, Prisma } from '@prisma/client';
-import { BaseService } from '../common/base.service';
+import { BaseService } from '../../common/base.service';
 
 @Injectable()
 export class MessagesService extends BaseService<

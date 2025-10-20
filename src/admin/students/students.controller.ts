@@ -13,9 +13,9 @@ import {
 import { StudentsService } from './students.service';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
-import { BaseController } from '../common/base.controller';
+import { BaseController } from '../../common/base.controller';
 import { Student } from '@prisma/client';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RequestAddStudentDto } from './dto/request-add-student.dto';
 
 @Controller('students')

@@ -14,10 +14,10 @@ import { CreateParentDto } from './dto/create-parent.dto';
 import { UpdateParentDto } from './dto/update-parent.dto';
 import { RegisterParentDto } from './dto/register-parent.dto';
 import { LoginParentDto } from './dto/login-parent.dto';
-import { BaseController } from '../common/base.controller';
+import { BaseController } from '../../common/base.controller';
 import { Parent } from '@prisma/client';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { Public } from '../common/decorators/public.decorator';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('parents')
 export class ParentsController extends BaseController<

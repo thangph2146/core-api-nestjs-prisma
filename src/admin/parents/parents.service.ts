@@ -4,13 +4,13 @@ import {
   ConflictException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { CreateParentDto } from './dto/create-parent.dto';
 import { UpdateParentDto } from './dto/update-parent.dto';
 import { RegisterParentDto } from './dto/register-parent.dto';
 import { LoginParentDto } from './dto/login-parent.dto';
 import { Parent, Prisma, Role } from '@prisma/client';
-import { BaseService } from '../common/base.service';
+import { BaseService } from '../../common/base.service';
 import * as bcrypt from 'bcryptjs';
 import { JwtService } from '@nestjs/jwt';
 

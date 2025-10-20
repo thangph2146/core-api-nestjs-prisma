@@ -4,11 +4,11 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { Student, Prisma } from '@prisma/client';
-import { BaseService } from '../common/base.service';
+import { BaseService } from '../../common/base.service';
 import { RequestAddStudentDto } from './dto/request-add-student.dto';
 
 @Injectable()
